@@ -4157,3 +4157,523 @@ function showNotification(message, type = 'info') {
                                 <h5><i class="fas fa-route"></i> Ruta ${ruta.id || rutaId}</h5>
                                 <span class="ruta-info">${ruta.origenId || '?'} → ${ruta.destinoId || '?'}</span>
                             </div>               
+                            <div class="ruta-recursos-list">`;
+                    
+                    data.recursos.forEach(recurso => {
+                        html += `
+                            <div class="recurso-item">
+                                <span class="recurso-nombre">${recurso.nombre || recurso.id}</span>
+                                <span class="recurso-tipo">${recurso.tipo || 'N/A'}</span>
+                                <span class="recurso-cantidad">${recurso.cantidadDisponible || 0} ${recurso.unidadMedida || ''}</span>
+                            </div>`;
+                    });
+                    
+                    html += `</div></div>`;
+                }
+                
+                // Cerrar el contenedor grid
+                html += '</div>';
+            }
+
+            html += '</div>';
+            clearTimeout(timeoutId);
+            cont.innerHTML = html;
+        } catch (error) {
+            clearTimeout(timeoutId);
+            console.error('Error cargando mapa de recursos:', error);
+            let errorHtml = '<div class="mapa-recursos-stats">';
+            errorHtml += `
+                <div class="stat-item">
+                    <span class="stat-label">Total recursos:</span>
+                    <span class="stat-value">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Rutas con recursos:</span>
+                    <span class="stat-value">0</span>
+                </div>`;
+            errorHtml += '</div>';
+            errorHtml += `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Error cargando mapa de recursos</h3>
+                    <p>${error.message || 'Error desconocido'}</p>
+                    <p style="font-size: 0.85rem; color: #718096; margin-top: 10px;">Revisa la consola del navegador para más detalles.</p>
+                </div>`;
+            cont.innerHTML = errorHtml;
+        }
+    }
+
+    // Funciones del Mapa
+    async function initializeMap() {
+        if (!map) {
+            map = L.map('map').setView([4.5389, -75.6678], 13);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            map.on('click', handleMapClick);
+            await loadZones();
+        }
+    }
+
+    async function loadZones() {
+        try {
+            const response = await fetch(`${API_URL}/zonas`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                mode: 'cors'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+            zonas = await response.json();
+
+            zonas.forEach(zona => {
+                createZoneOnMap(zona);
+            });
+        } catch (error) {
+            console.error('Error cargando zonas:', error);
+        }
+    }
+
+    // Función para recargar zonas sin recargar toda la página
+    async function reloadZonesOnMap() {
+        // Limpiar zonas existentes del mapa
+        zoneCircles.forEach(item => {
+            if (item.circle) map.removeLayer(item.circle);
+            if (item.marker) map.removeLayer(item.marker);
+        });
+        zoneCircles = [];
+        
+        // Recargar zonas desde el servidor
+        await loadZones();
+    }
+
+    function createZoneOnMap(zona) {
+        const color = getColorByUrgency(zona.nivelUrgencia);
+        const radius = zona.radio || 500; // Radio en metros
+
+        // Crear círculo para la zona
+        const circle = L.circle([zona.coordenadaX, zona.coordenadaY], {
+            color: color,
+            fillColor: color,
+            fillOpacity: 0.3,
+            radius: radius,
+            weight: 3
+        }).addTo(map);
+
+        // Crear marcador en el centro
+        const marker = L.marker([zona.coordenadaX, zona.coordenadaY], {
+            icon: L.divIcon({
+                html: `<div style="background: ${color}; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"><span style="color: white; font-size: 12px; font-weight: bold;">${zona.nivelUrgencia.charAt(0)}</span></div>`,
+                className: '',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            })
+        }).bindPopup(`
+            <b>${zona.nombre}</b><br>
+            ID: ${zona.id}<br>
+            Nivel: ${zona.nivelUrgencia}<br>
+            Población: ${zona.poblacionAfectada}<br>
+            Radio: ${radius} metros
+        `).addTo(map);
+
+        zoneCircles.push({ circle, marker, zona });
+    }
+
+    function getColorByUrgency(urgency) {
+        switch(urgency) {
+            case 'CRITICA': return '#F44336';
+            case 'ALTA': return '#FF9800';
+            case 'MEDIA': return '#FFC107';
+            case 'BAJA': return '#4CAF50';
+            default: return '#9E9E9E';
+        }
+    }
+
+    function handleMapClick(e) {
+        const latlng = e.latlng;
+
+        switch(currentMode) {
+            case 'select':
+                selectPoint(latlng);
+                break;
+            case 'create-zone':
+                openCreateZoneModal(latlng);
+                break;
+            case 'calculate-route':
+                selectPointForRoute(latlng);
+                break;
+        }
+    }
+
+    function selectPoint(latlng) {
+        if (window.selectedMarker) {
+            map.removeLayer(window.selectedMarker);
+        }
+
+        window.selectedMarker = L.marker(latlng).addTo(map)
+            .bindPopup(`<i class="fas fa-map-marker-alt"></i> Punto seleccionado<br>Lat: ${latlng.lat.toFixed(6)}<br>Lng: ${latlng.lng.toFixed(6)}`)
+            .openPopup();
+
+        displaySelectedPoint(latlng);
+    }
+
+    async function displaySelectedPoint(latlng) {
+        const address = await getAddress(latlng.lat, latlng.lng);
+        const infoDiv = document.getElementById('selectedLocationInfo');
+        infoDiv.innerHTML = `
+            <div class="selected-location">
+                <h4 style="color: #2d3748; margin-bottom: 10px; font-weight: 600;"><i class="fas fa-info-circle"></i> Información del Punto</h4>
+                <p><strong>Latitud:</strong> ${latlng.lat.toFixed(6)}</p>
+                <p><strong>Longitud:</strong> ${latlng.lng.toFixed(6)}</p>
+                <p><strong>Dirección:</strong> ${address}</p>
+                <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="btn-action" onclick="setMode('create-zone'); openCreateZoneModal({lat: ${latlng.lat}, lng: ${latlng.lng}})">
+                        <i class="fas fa-draw-polygon"></i> Crear Zona Aquí
+                    </button>
+                    <button class="btn-action" onclick="setMode('calculate-route'); addRoutePoint({lat: ${latlng.lat}, lng: ${latlng.lng}})">
+                        <i class="fas fa-route"></i> Usar para Ruta
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    function openCreateZoneModal(latlng) {
+        document.getElementById('zoneCoords').value = `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
+        window.tempZoneCoords = latlng;
+
+        // Mostrar círculo temporal
+        if (tempCircle) {
+            map.removeLayer(tempCircle);
+        }
+
+        const radius = parseInt(document.getElementById('zoneRadius').value);
+        tempCircle = L.circle(latlng, {
+            color: '#667eea',
+            fillColor: '#667eea',
+            fillOpacity: 0.2,
+            radius: radius,
+            weight: 2,
+            dashArray: '5, 5'
+        }).addTo(map);
+
+        // Actualizar dirección
+        updateAddressDisplay(latlng);
+
+        document.getElementById('createZoneModal').style.display = 'flex';
+    }
+
+    async function updateAddressDisplay(latlng) {
+        const addressDisplay = document.getElementById('addressDisplay');
+        const addressText = document.getElementById('addressText');
+
+        addressDisplay.style.display = 'block';
+        addressText.textContent = 'Cargando dirección...';
+
+        const address = await getAddress(latlng.lat, latlng.lng);
+        addressText.textContent = address;
+    }
+
+    // Control deslizante para el radio
+    document.getElementById('zoneRadius').addEventListener('input', function(e) {
+        const radius = parseInt(e.target.value);
+        document.getElementById('radiusValue').textContent = radius;
+
+        if (tempCircle && window.tempZoneCoords) {
+            tempCircle.setRadius(radius);
+        }
+    });
+
+    // Rutas con OSM Routing
+    let routePoints = [];
+    let routeMarkers = [];
+
+    function addRoutePoint(latlng) {
+        routePoints.push(latlng);
+
+        const marker = L.marker(latlng, {
+            icon: L.divIcon({
+                html: `<div style="background: ${routePoints.length === 1 ? '#4CAF50' : '#F44336'}; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"><span style="color: white; font-size: 14px; font-weight: bold;">${routePoints.length === 1 ? 'A' : 'B'}</span></div>`,
+                className: '',
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            })
+        }).addTo(map)
+            .bindPopup(`Punto ${routePoints.length === 1 ? 'Origen (A)' : 'Destino (B)'}<br>${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`)
+            .openPopup();
+
+        routeMarkers.push(marker);
+
+        if (routePoints.length === 2) {
+            calculateRealRoute();
+        } else {
+            updateModeInstructions('<i class="fas fa-map-marker-alt"></i> Selecciona el punto de DESTINO (B) para la ruta');
+        }
+    }
+
+    function selectPointForRoute(latlng) {
+        addRoutePoint(latlng);
+    }
+
+    function calculateRealRoute() {
+        if (currentRoutingControl) {
+            map.removeControl(currentRoutingControl);
+        }
+
+        const infoDiv = document.getElementById('selectedLocationInfo');
+        infoDiv.innerHTML = `
+            <div style="text-align: center; padding: 20px; background: white; border-radius: 6px; border: 1px solid #e1e8ed;">
+                <i class="fas fa-route" style="font-size: 36px; color: #4299e1; margin-bottom: 10px;"></i>
+                <h4 style="color: #2d3748; margin-bottom: 10px; font-weight: 600;">Calculando Ruta Real...</h4>
+                <p style="color: #718096;">Buscando la mejor ruta por calles y carreteras</p>
+            </div>
+        `;
+
+        // Usar Leaflet Routing Machine para rutas reales
+        currentRoutingControl = L.Routing.control({
+            waypoints: [
+                L.latLng(routePoints[0].lat, routePoints[0].lng),
+                L.latLng(routePoints[1].lat, routePoints[1].lng)
+            ],
+            routeWhileDragging: false,
+            showAlternatives: false,
+            lineOptions: {
+                styles: [
+                    {
+                        color: '#2196f3',
+                        weight: 6,
+                        opacity: 0.8
+                    }
+                ]
+            },
+            createMarker: function() { return null; } // No crear marcadores adicionales
+        }).addTo(map);
+
+        currentRoutingControl.on('routesfound', function(e) {
+            const routes = e.routes;
+            const route = routes[0];
+
+            displayRouteInfoReal(route);
+        });
+
+        currentRoutingControl.on('routingerror', function(e) {
+            infoDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px; background: #fed7d7; border-radius: 6px; border: 1px solid #fc8181;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 36px; color: #e53e3e; margin-bottom: 10px;"></i>
+                    <h4 style="color: #c53030; margin-bottom: 10px; font-weight: 600;">Error en el Routing</h4>
+                    <p style="color: #718096; margin-bottom: 15px;">No se pudo calcular la ruta. Intenta con puntos más cercanos a carreteras.</p>
+                    <button class="btn-action" onclick="resetMode()"><i class="fas fa-redo"></i> Reintentar</button>
+                </div>
+            `;
+        });
+    }
+
+    function displayRouteInfoReal(route) {
+        const distance = (route.summary.totalDistance / 1000).toFixed(2); // km
+        const time = (route.summary.totalTime / 60).toFixed(0); // minutos
+
+        const infoDiv = document.getElementById('selectedLocationInfo');
+        infoDiv.innerHTML = `
+            <div class="route-info" style="background: #ebf8ff;">
+                <h4 style="color: #2c5282; margin-bottom: 15px; font-weight: 600;"><i class="fas fa-route"></i> Ruta por Calles Reales</h4>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div style="background: white; padding: 12px; border-radius: 6px; text-align: center; border: 1px solid #e1e8ed;">
+                        <i class="fas fa-route" style="color: #4299e1; font-size: 20px; margin-bottom: 8px;"></i>
+                        <div style="font-size: 24px; color: #2d3748; font-weight: 600;">${distance}</div>
+                        <div style="color: #718096; font-size: 12px;">KILÓMETROS</div>
+                    </div>
+                    <div style="background: white; padding: 12px; border-radius: 6px; text-align: center; border: 1px solid #e1e8ed;">
+                        <i class="fas fa-clock" style="color: #48bb78; font-size: 20px; margin-bottom: 8px;"></i>
+                        <div style="font-size: 24px; color: #2d3748; font-weight: 600;">${time}</div>
+                        <div style="color: #718096; font-size: 12px;">MINUTOS</div>
+                    </div>
+                </div>
+
+                <div style="background: white; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #e1e8ed;">
+                    <p style="color: #4a5568;"><i class="fas fa-play" style="color: #48bb78;"></i> <strong>Origen:</strong> ${routePoints[0].lat.toFixed(6)}, ${routePoints[0].lng.toFixed(6)}</p>
+                    <p style="color: #4a5568;"><i class="fas fa-flag-checkered" style="color: #e53e3e;"></i> <strong>Destino:</strong> ${routePoints[1].lat.toFixed(6)}, ${routePoints[1].lng.toFixed(6)}</p>
+                </div>
+
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="btn-action" onclick="resetMode()" style="flex: 1;">
+                        <i class="fas fa-redo"></i> Nueva Ruta
+                    </button>
+                    <button class="btn-action" onclick="clearRoute()" style="flex: 1; background: #e53e3e;">
+                        <i class="fas fa-trash"></i> Limpiar Ruta
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    function clearRoute() {
+        if (currentRoutingControl) {
+            map.removeControl(currentRoutingControl);
+            currentRoutingControl = null;
+        }
+        routePoints = [];
+        routeMarkers.forEach(marker => map.removeLayer(marker));
+        routeMarkers = [];
+        resetMode();
+    }
+
+    function setMode(mode) {
+        currentMode = mode;
+
+        // Limpiar selecciones anteriores
+        if (mode !== 'calculate-route') {
+            clearRoute();
+        }
+        if (mode !== 'create-zone' && tempCircle) {
+            map.removeLayer(tempCircle);
+            tempCircle = null;
+        }
+
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.dataset.mode === mode) {
+                btn.classList.add('active');
+            }
+        });
+
+        const instructions = {
+            'select': '<i class="fas fa-mouse-pointer"></i> Modo Seleccionar: Haz clic en el mapa para ver información detallada del lugar',
+            'create-zone': '<i class="fas fa-draw-polygon"></i> Modo Crear Zona: Haz clic en el mapa para definir el centro de una nueva zona con área de cobertura',
+            'calculate-route': '<i class="fas fa-route"></i> Modo Calcular Ruta: Selecciona dos puntos para calcular una ruta real por calles y carreteras'
+        };
+
+        updateModeInstructions(instructions[mode]);
+
+        if (mode === 'select') {
+            document.getElementById('selectedLocationInfo').innerHTML =
+                '<p style="color: #718096; font-style: italic;"><i class="fas fa-info-circle"></i> Haz clic en el mapa para ver información del lugar</p>';
+        } else {
+            document.getElementById('selectedLocationInfo').innerHTML =
+                '<p style="color: #718096; font-style: italic;">' + instructions[mode] + '</p>';
+        }
+    }
+
+    function updateModeInstructions(text) {
+        document.getElementById('modeInstructions').innerHTML = `<strong>${text}</strong>`;
+    }
+
+    function resetMode() {
+        setMode(currentMode);
+    }
+
+    document.getElementById('createZoneForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const zoneData = {
+            id: document.getElementById('zoneId').value,
+            nombre: document.getElementById('zoneName').value,
+            descripcion: document.getElementById('zoneDesc').value,
+            coordenadaX: window.tempZoneCoords.lat,
+            coordenadaY: window.tempZoneCoords.lng,
+            poblacionAfectada: parseInt(document.getElementById('zonePop').value),
+            nivelUrgencia: document.getElementById('zoneUrgency').value,
+            radio: parseInt(document.getElementById('zoneRadius').value)
+        };
+
+        try {
+            const response = await fetch(`${API_URL}/zonas`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                mode: 'cors',
+                body: JSON.stringify(zoneData)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert('✓ Zona creada exitosamente');
+                closeModal('createZoneModal');
+                document.getElementById('createZoneForm').reset();
+
+                if (tempCircle) {
+                    map.removeLayer(tempCircle);
+                    tempCircle = null;
+                }
+
+                // Recargar zonas sin recargar toda la página
+                reloadZonesOnMap();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            alert('Error de conexión: ' + error.message);
+        }
+    });
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).style.display = 'none';
+        if (tempCircle) {
+            map.removeLayer(tempCircle);
+            tempCircle = null;
+        }
+    }
+
+function showMap() {
+    switchTab('mapa');
+}
+
+    function logout() {
+        if (confirm('¿Estás seguro que deseas cerrar sesión?')) {
+            currentUser = null;
+            // Limpiar localStorage al cerrar sesión
+            localStorage.removeItem('currentUser');
+            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById('loginPage').style.display = 'flex';
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        }
+    }
+
+    window.onclick = function(event) {
+        if (event.target.classList.contains('modal')) {
+            closeModal(event.target.id);
+        }
+    }
+
+    // ==========================================================
+    // FUNCIONES DEL ARBOL DE DISTRIBUCIÓN
+    // ==========================================================
+
+    function initTree(){
+            console.log('🌳 Inicializando árbol D3...');
+    
+        const svgElement = document.getElementById("tree-svg");
+        if (!svgElement) {
+            console.error('❌ No se encontró el elemento #tree-svg');
+            return;
+        }
+
+        // Limpiar SVG existente
+        d3.select("#tree-svg").selectAll("*").remove();
+        
+        treeSvg = d3.select("#tree-svg")
+            .attr("width", "100%")
+            .attr("height", treeHeight);
+
+        // Configurar zoom
+        treeZoom = d3.zoom()
+            .scaleExtent([0.1, 3])
+            .on("zoom", (event) => {
+                treeG.attr("transform", event.transform);
+            });
+
+        treeSvg.call(treeZoom);
+
+        // Crear grupo principal centrado
+        treeG = treeSvg.append("g")
+            .attr("transform", `translate(${treeWidth / 2}, 50)`);
+
+        // Configurar layout del árbol con mejor separación
+        d3Tree = d3.tree()
+            .size([treeWidth - 200, treeHeight - 150])
