@@ -2078,3 +2078,1043 @@
                     </div>
                 </form>
             </div>
+            
+            <div class="section-container">
+                <div class="section-header">
+                    <h2><i class="fas fa-user-shield"></i> Equipos Existentes</h2>
+                    <button class="btn-refresh" onclick="loadEquipos()">
+                        <i class="fas fa-sync-alt"></i> Actualizar
+                    </button>
+                </div>
+                <div id="equiposList">
+                    <div class="loading-state">
+                        <i class="fas fa-spinner fa-spin"></i> Cargando equipos...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gestión de Usuarios -->
+        <div id="gestion-usuarios" class="admin-tab-content">
+            <div class="section-container">
+                <div class="section-header">
+                    <h2><i class="fas fa-user-cog"></i> Gestión de Usuarios</h2>
+                </div>
+                <div id="usersList">
+                    <div class="loading-state">
+                        <i class="fas fa-spinner fa-spin"></i> Cargando usuarios...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Asignación de Recursos -->
+        <div id="asignacion-recursos" class="admin-tab-content">
+            <div class="section-container">
+                <div class="section-header">
+                    <h2><i class="fas fa-tasks"></i> Asignación Visual de Recursos</h2>
+                </div>
+                <div class="two-column">
+                    <div class="input-group">
+                        <label>Seleccionar Zona</label>
+                        <select id="assignZoneSelect" onchange="loadZoneResources()">
+                            <option value="">Selecciona una zona</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Seleccionar Recurso</label>
+                        <select id="assignResourceSelect">
+                            <option value="">Selecciona un recurso</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Cantidad a Asignar</label>
+                    <input type="number" id="assignQuantity" min="1" value="1">
+                </div>
+                <button class="btn-primary" onclick="assignResourceToZone()">
+                    <i class="fas fa-link"></i> Asignar Recurso a Zona
+                </button>
+
+                <div id="zoneResourcesInfo" style="margin-top: 20px; display: none;">
+                    <h3>Recursos Asignados a la Zona</h3>
+                    <div id="assignedResourcesList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+            <!-- ============================================ -->
+            <!-- PESTAÑA: PANEL DE RUTAS (Placeholder) -->
+            <!-- ============================================ -->
+<div id="rutas-tab" class="tab-content">
+    <div class="container">
+        <div class="welcome-section">
+            <h1><i class="fas fa-route"></i> Panel de Rutas y Evacuaciones</h1>
+            <p class="subtitle">Planificación y gestión de rutas de evacuación</p>
+        </div>
+
+        <!-- Sistema de pestañas interno -->
+        <div class="tabs-header" style="margin-bottom: 20px;">
+            <button class="tab-button active" onclick="switchRoutesTab('crear-rutas')">Crear Rutas</button>
+            <button class="tab-button" onclick="switchRoutesTab('ver-rutas')">Todas las Rutas</button>
+            <button class="tab-button" onclick="switchRoutesTab('planificar-evacuacion')">Planificar Evacuación</button>
+            <button class="tab-button" onclick="switchRoutesTab('rutas-optimas')">Rutas Óptimas</button>
+        </div>
+
+        <!-- Crear Rutas Manualmente -->
+        <div id="crear-rutas" class="routes-tab-content active">
+            <div class="section-container">
+                <div class="section-header">
+                    <h2><i class="fas fa-plus-circle"></i> Crear Ruta Automáticamente</h2>
+                </div>
+                <form id="createRouteForm" class="two-column">
+                    <div class="input-group">
+                        <label>ID de la Ruta *</label>
+                        <input type="text" id="routeId" required placeholder="ej. R004">
+                    </div>
+                    <div class="input-group">
+                        <label>Zona Origen *</label>
+                        <select id="routeOrigin" required onchange="calculateRoutePreview()">
+                            <option value="">Selecciona zona origen</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Zona Destino *</label>
+                        <select id="routeDestination" required onchange="calculateRoutePreview()">
+                            <option value="">Selecciona zona destino</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Tipo de Ruta *</label>
+                        <select id="routeType" required onchange="calculateRoutePreview()">
+                            <option value="TERRESTRE">Terrestre (60 km/h)</option>
+                            <option value="AEREA">Aérea (200 km/h)</option>
+                            <option value="MARITIMA">Marítima (40 km/h)</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Vista previa de cálculos automáticos -->
+                    <div id="routePreview" class="input-group" style="grid-column: 1 / -1; display: none;">
+                        <div style="background: #ebf8ff; padding: 16px; border-radius: 8px; border-left: 4px solid #4299e1;">
+                            <h4 style="color: #2c5282; margin-bottom: 12px;">
+                                <i class="fas fa-calculator"></i> Cálculos Automáticos
+                            </h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <div style="background: white; padding: 12px; border-radius: 6px;">
+                                    <i class="fas fa-route" style="color: #4299e1;"></i>
+                                    <strong>Distancia:</strong>
+                                    <div id="previewDistance" style="font-size: 1.2rem; color: #2d3748; margin-top: 4px;">
+                                        -- km
+                                    </div>
+                                </div>
+                                <div style="background: white; padding: 12px; border-radius: 6px;">
+                                    <i class="fas fa-clock" style="color: #48bb78;"></i>
+                                    <strong>Tiempo estimado:</strong>
+                                    <div id="previewTime" style="font-size: 1.2rem; color: #2d3748; margin-top: 4px;">
+                                        -- horas
+                                    </div>
+                                </div>
+                            </div>
+                            <p style="margin-top: 10px; font-size: 0.85rem; color: #4a5568;">
+                                <i class="fas fa-info-circle"></i> 
+                                Calculado usando distancia euclidiana entre coordenadas geográficas
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>Capacidad Máxima (personas)</label>
+                        <input type="number" id="routeCapacity" min="1" value="100">
+                    </div>
+                    <div class="input-group">
+                        <label>Nivel de Riesgo (0-1)</label>
+                        <input type="number" id="routeRisk" min="0" max="1" step="0.1" value="0.1">
+                    </div>
+                    <div class="input-group" style="grid-column: 1 / -1;">
+                        <button type="submit" class="btn-primary">
+                            <i class="fas fa-road"></i> Crear Ruta Automática
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div style="background: #fff3cd; padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #ffc107;">
+            <p style="margin: 0; color: #856404; font-size: 0.9rem;">
+                <i class="fas fa-info-circle"></i> 
+                Si los selects de zonas aparecen vacíos, 
+                <button onclick="recargarZonasRutas()" class="btn-action" style="display: inline-block; padding: 4px 12px; margin-left: 8px;">
+                    <i class="fas fa-sync-alt"></i> Recargar Zonas
+                </button>
+            </p>
+        </div>
+
+        <!-- Ver Todas las Rutas -->
+        <div id="ver-rutas" class="routes-tab-content">
+            <div class="section-container">
+                <div class="section-header">
+                    <h2><i class="fas fa-list"></i> Todas las Rutas del Sistema</h2>
+                    <button class="btn-refresh" onclick="loadAllRoutes()">
+                        <i class="fas fa-sync-alt"></i> Actualizar
+                    </button>
+                </div>
+                <div id="routesList">
+                    <div class="loading-state">
+                        <i class="fas fa-spinner fa-spin"></i> Cargando rutas...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Planificar Evacuación -->
+        <div id="planificar-evacuacion" class="routes-tab-content">
+            <div class="section-container">
+                <div class="section-header">
+                    <h2><i class="fas fa-ambulance"></i> Planificar Nueva Evacuación</h2>
+                </div>
+                <form id="planEvacuationForm" class="two-column">
+                    <div class="input-group">
+                        <label>ID de Evacuación *</label>
+                        <input type="text" id="evacId" required placeholder="ej. EV001">
+                    </div>
+                    <div class="input-group">
+                        <label>Nombre *</label>
+                        <input type="text" id="evacName" required placeholder="ej. Evacuación Centro">
+                    </div>
+                    <div class="input-group">
+                        <label>Zona Origen *</label>
+                        <select id="evacOrigin" required onchange="updateEvacuationRoutes()">
+                            <option value="">Selecciona zona origen</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Zona Destino *</label>
+                        <select id="evacDestination" required onchange="updateEvacuationRoutes()">
+                            <option value="">Selecciona zona destino</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Ruta Recomendada</label>
+                        <select id="evacRoute">
+                            <option value="">Se calculará automáticamente</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Personas a Evacuar *</label>
+                        <input type="number" id="evacPeople" required min="1" value="100">
+                    </div>
+                    <div class="input-group">
+                        <label>Nivel de Urgencia *</label>
+                        <select id="evacUrgency" required>
+                            <option value="BAJA">Baja</option>
+                            <option value="MEDIA">Media</option>
+                            <option value="ALTA">Alta</option>
+                            <option value="CRITICA">Crítica</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Responsable</label>
+                        <input type="text" id="evacResponsible" placeholder="Nombre del responsable">
+                    </div>
+                    <div class="input-group" style="grid-column: 1 / -1;">
+                        <button type="submit" class="btn-primary">
+                            <i class="fas fa-play-circle"></i> Planificar Evacuación
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="section-container">
+                <div class="section-header">
+                    <h2><i class="fas fa-history"></i> Evacuaciones Planificadas</h2>
+                    <button class="btn-refresh" onclick="loadEvacuaciones()">
+                        <i class="fas fa-sync-alt"></i> Actualizar
+                    </button>
+                </div>
+                <div id="evacuacionesList">
+                    <div class="loading-state">
+                        <i class="fas fa-spinner fa-spin"></i> Cargando evacuaciones...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rutas Óptimas -->
+        <div id="rutas-optimas" class="routes-tab-content">
+            <div class="section-container">
+                <div class="section-header">
+                    <h2><i class="fas fa-route"></i> Cálculo de Rutas Óptimas</h2>
+                </div>
+                <div class="two-column">
+                    <div class="input-group">
+                        <label>Zona Origen *</label>
+                        <select id="optimalOrigin" required onchange="calculateOptimalRoutes()">
+                            <option value="">Selecciona origen</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Zona Destino *</label>
+                        <select id="optimalDestination" required onchange="calculateOptimalRoutes()">
+                            <option value="">Selecciona destino</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="optimalRoutesResults" style="display: none;">
+                    <h3>Resultados de Rutas Óptimas</h3>
+                    
+                    <div class="route-option">
+                        <h4><i class="fas fa-route"></i> Ruta Más Corta (Distancia)</h4>
+                        <div id="shortestRouteInfo"></div>
+                    </div>
+
+                    <div class="route-option">
+                        <h4><i class="fas fa-bolt"></i> Ruta Más Rápida (Tiempo)</h4>
+                        <div id="fastestRouteInfo"></div>
+                    </div>
+
+                    <div class="route-option">
+                        <h4><i class="fas fa-shield-alt"></i> Ruta Más Segura</h4>
+                        <div id="safestRouteInfo"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================ -->
+<!-- PESTAÑA: ESTADÍSTICAS (Gráficas Funcionales) -->
+<!-- ============================================ -->
+<div id="estadisticas-tab" class="tab-content">
+    <div class="container">
+        <div class="welcome-section">
+            <h1><i class="fas fa-chart-bar"></i> Estadísticas del Sistema</h1>
+            <p class="subtitle">
+                Análisis de zonas, recursos y equipos basado en las estructuras internas
+                del sistema de gestión de desastres.
+            </p>
+        </div>
+
+        <!-- Resumen numérico rápido -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg,#667eea,#764ba2);">
+                    <i class="fas fa-map-marker-alt"></i>
+                </div>
+                <div class="stat-info">
+                    <div class="stat-value" id="statsTotalZonas">0</div>
+                    <div class="stat-label">Zonas registradas</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg,#f093fb,#f5576c);">
+                    <i class="fas fa-boxes"></i>
+                </div>
+                <div class="stat-info">
+                    <div class="stat-value" id="statsTotalRecursos">0</div>
+                    <div class="stat-label">Recursos totales</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg,#4facfe,#00f2fe);">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stat-info">
+                    <div class="stat-value" id="statsTotalEquipos">0</div>
+                    <div class="stat-label">Equipos de rescate</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg,#43e97b,#38f9d7);">
+                    <i class="fas fa-ambulance"></i>
+                </div>
+                <div class="stat-info">
+                    <div class="stat-value" id="statsTotalEvacuaciones">0</div>
+                    <div class="stat-label">Evacuaciones planificadas</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráfica: Zonas por nivel de urgencia -->
+        <div class="section-container">
+            <div class="section-header">
+                <h2><i class="fas fa-exclamation-triangle"></i> Zonas por nivel de urgencia</h2>
+            </div>
+            <canvas id="chartZonasUrgencia" height="120"></canvas>
+        </div>
+
+        <!-- Gráfica: Recursos por tipo -->
+        <div class="section-container">
+            <div class="section-header">
+                <h2><i class="fas fa-warehouse"></i> Recursos por tipo</h2>
+            </div>
+            <canvas id="chartRecursosTipo" height="120"></canvas>
+        </div>
+
+        <!-- Gráfica: Equipos por estado -->
+        <div class="section-container">
+            <div class="section-header">
+                <h2><i class="fas fa-user-shield"></i> Equipos por estado</h2>
+            </div>
+            <canvas id="chartEquiposEstado" height="120"></canvas>
+        </div>
+
+        <!-- Gráfica adicional: Progreso de Evacuaciones -->
+        <div class="section-container">
+            <div class="section-header">
+                <h2><i class="fas fa-ambulance"></i> Progreso de Evacuaciones</h2>
+            </div>
+            <canvas id="chartEvacuacionesProgreso" height="120"></canvas>
+        </div>
+    </div>
+</div>
+
+
+<!-- ============================================ -->
+<!-- PESTAÑA: MAPA INTERACTIVO -->
+<!-- ============================================ -->
+<div id="mapa-tab" class="tab-content">
+    <div class="container">
+        <h2 style="color: #1a202c; margin-bottom: 20px; font-weight: 600;">
+            <i class="fas fa-map-marked-alt"></i> Mapa Interactivo con Routing Real
+        </h2>
+        <div id="map"></div>
+
+        <div class="map-controls">
+            <h3>Modo de Operación</h3>
+            <div class="mode-selector">
+                <button class="mode-btn active" data-mode="select" onclick="setMode('select')">
+                    <i class="fas fa-mouse-pointer"></i> Seleccionar Punto
+                </button>
+                <button class="mode-btn" data-mode="create-zone" onclick="setMode('create-zone')">
+                    <i class="fas fa-draw-polygon"></i> Crear Zona con Área
+                </button>
+                <button class="mode-btn" data-mode="calculate-route" onclick="setMode('calculate-route')">
+                    <i class="fas fa-route"></i> Calcular Ruta Real (OSM)
+                </button>
+            </div>
+
+            <div id="modeInstructions" style="background: #fef5e7; padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 3px solid #f39c12; color: #856404;">
+                <strong><i class="fas fa-info-circle"></i> Modo Seleccionar:</strong> Haz clic en el mapa para ver información del lugar
+            </div>
+
+            <div id="selectedLocationInfo">
+                <p style="color: #718096; font-style: italic;"><i class="fas fa-info-circle"></i> Haz clic en el mapa para comenzar</p>
+            </div>
+
+            <div class="legend">
+                <h4><i class="fas fa-list"></i> Leyenda del Mapa</h4>
+                <div class="legend-item">
+                    <div style="width: 30px; height: 30px; border-radius: 50%; background: #4CAF50; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-play" style="color: white; font-size: 12px;"></i>
+                    </div>
+                    <span><strong>Punto de Origen</strong> - Inicio de la ruta</span>
+                </div>
+                <div class="legend-item">
+                    <div style="width: 30px; height: 30px; border-radius: 50%; background: #F44336; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-flag-checkered" style="color: white; font-size: 12px;"></i>
+                    </div>
+                    <span><strong>Punto de Destino</strong> - Fin de la ruta</span>
+                </div>
+                <hr style="margin: 12px 0; border: none; border-top: 1px solid #ddd;">
+                <div class="legend-item">
+                    <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(244, 67, 54, 0.3); border: 3px solid #F44336;"></div>
+                    <span>Zona <strong>CRÍTICA</strong> con área de cobertura</span>
+                </div>
+                <div class="legend-item">
+                    <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 152, 0, 0.3); border: 3px solid #FF9800;"></div>
+                    <span>Zona <strong>ALTA</strong> con área de cobertura</span>
+                </div>
+                <div class="legend-item">
+                    <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 193, 7, 0.3); border: 3px solid #FFC107;"></div>
+                    <span>Zona <strong>MEDIA</strong> con área de cobertura</span>
+                </div>
+                <div class="legend-item">
+                    <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(76, 175, 80, 0.3); border: 3px solid #4CAF50;"></div>
+                    <span>Zona <strong>BAJA</strong> con área de cobertura</span>
+                </div>
+                <hr style="margin: 12px 0; border: none; border-top: 1px solid #ddd;">
+                <div class="legend-item">
+                    <div style="width: 40px; height: 4px; background: #2196f3; border-radius: 2px;"></div>
+                    <span><strong>Ruta por Calles Reales</strong> (OpenStreetMap)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!--NUEVA PESTAÑA: ÁRBOL DE DISTRIBUCIÓN-->
+<div id="arbol-tab" class="tab-content">
+                <div class="container">
+                    <div class="welcome-section">
+                        <h1><i class="fas fa-sitemap"></i> Árbol de Distribución de Recursos</h1>
+                        <p class="subtitle">Visualización jerárquica interactiva - Haz clic en los nodos para expandir/contraer</p>
+                    </div>
+
+                    <!-- Panel de Control -->
+                    <div class="tree-controls-panel">
+                        <div class="section-header">
+                            <h2><i class="fas fa-cogs"></i> Controles del Árbol</h2>
+                        </div>
+
+                       <div class="tree-stats-box" style="margin-bottom: 20px;">
+                            <h4><i class="fas fa-chart-bar"></i> Estadísticas del Sistema</h4>
+                            <div class="tree-stat-item">
+                                <span>📊 Nodos en el árbol:</span>
+                                <span class="tree-stat-value" id="treeTotalNodes">0</span>
+                            </div>
+                            <div class="tree-stat-item">
+                                <span>📦 Recursos totales:</span>
+                                <span class="tree-stat-value" id="treeTotalQuantity">0</span>
+                            </div>
+                            <div class="tree-stat-item">
+                                <span>🌳 Niveles de distribución:</span>
+                                <span class="tree-stat-value" id="treeMaxDepth">0</span>
+                            </div>
+                        </div> 
+
+                        <div style="background: #ebf8ff; padding: 12px; border-radius: 6px; margin-bottom: 16px; border-left: 4px solid #4299e1;">
+                            <p style="margin: 0; color: #2c5282; font-size: 0.85rem;">
+                                <i class="fas fa-info-circle"></i> <strong>Sistema Inteligente:</strong> 
+                                Los recursos se distribuyen automáticamente priorizando zonas críticas y de alta urgencia.
+                            </p>
+                        </div>
+
+                        <div style="background: #f7fafc; padding: 16px; border-radius: 8px; margin-bottom: 16px; border: 2px dashed #cbd5e0;">
+                            <p style="margin: 0; color: #4a5568; text-align: center;">
+                                <i class="fas fa-magic" style="color: #667eea; font-size: 1.5rem; display: block; margin-bottom: 8px;"></i>
+                                <strong>Árbol Automático</strong><br>
+                                <span style="font-size: 0.85rem;">
+                                El árbol se genera automáticamente desde el Panel de Administración.<br>
+                                Asigna recursos a zonas y el sistema optimizará la distribución.
+                                </span>
+                            </p>
+                        </div>
+    
+                        <form id="treeNodeForm" class="two-column" style="display: none">
+                            <div class="input-group">
+                                <label><i class="fas fa-tag"></i> ID del Nodo *</label>
+                                <input type="text" id="treeNodeId" required placeholder="ej. nodo_1">
+                            </div>
+
+                            <div class="input-group">
+                                <label><i class="fas fa-box"></i> Recurso *</label>
+                                <select id="treeResourceSelect" required>
+                                    <option value="">Selecciona un recurso</option>
+                                </select>
+                            </div>
+
+                            <div class="input-group">
+                                <label><i class="fas fa-sort-numeric-up"></i> Cantidad *</label>
+                                <input type="number" id="treeQuantity" required min="1" value="100">
+                            </div>
+
+                            <div class="input-group">
+                                <label><i class="fas fa-star"></i> Prioridad (1-10)</label>
+                                <input type="number" id="treePriority" min="1" max="10" value="5">
+                            </div>
+
+                            <div class="input-group">
+                                <label><i class="fas fa-level-up-alt"></i> Nodo Padre</label>
+                                <select id="treeParentNode">
+                                    <option value="">Raíz</option>
+                                </select>
+                            </div>
+
+                            <div class="input-group" style="grid-column: 1 / -1; display: flex; gap: 10px;">
+                                <button type="submit" class="btn-primary" style="flex: 1;">
+                                    <i class="fas fa-plus-circle"></i> Agregar Nodo
+                                </button>
+                                <button type="button" class="btn-action" onclick="treeCenterView()" style="flex: 1;">
+                                    <i class="fas fa-compress-arrows-alt"></i> Centrar
+                                </button>
+                            </div>
+                        </form>
+
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 16px;">
+                            <button class="btn-action" onclick="manualUpdateTree()" style="background: #48bb78; color: white;">
+                                <i class="fas fa-sync-alt"></i> Actualizar Distribución
+                            </button>
+                            <button class="btn-action" onclick="treeExpandAll()">
+                                <i class="fas fa-expand-alt"></i> Expandir Todo
+                            </button>
+                            <button class="btn-action" onclick="treeCollapseAll()">
+                                <i class="fas fa-compress-alt"></i> Contraer Todo
+                            </button>
+                            <button class="btn-action" onclick="treeCenterView()">
+                                <i class="fas fa-compress-arrows-alt"></i> Centrar Vista
+                            </button>
+                            <button class="btn-action" onclick="exportarReporte()" style="background: #667eea; color: white;">
+                                <i class="fas fa-download"></i> Exportar Reporte
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Visualización del Árbol -->
+                    <div class="tree-visualization-container">
+                        <svg id="tree-svg"></svg>
+                        
+                        <div class="tree-legend">
+                            <h4><i class="fas fa-info-circle"></i> Leyenda</h4>
+                            <div class="tree-legend-item">
+                                <div class="tree-legend-color" style="background: #667eea;"></div>
+                                <span>Prioridad Alta (7-10)</span>
+                            </div>
+                            <div class="tree-legend-item">
+                                <div class="tree-legend-color" style="background: #48bb78;"></div>
+                                <span>Prioridad Media (4-6)</span>
+                            </div>
+                            <div class="tree-legend-item">
+                                <div class="tree-legend-color" style="background: #ed8936;"></div>
+                                <span>Prioridad Baja (1-3)</span>
+                            </div>
+                            <div class="tree-legend-item">
+                                <i class="fas fa-plus-circle" style="color: #667eea;"></i>
+                                <span>Clic para expandir</span>
+                            </div>
+                            <div class="tree-legend-item">
+                                <i class="fas fa-minus-circle" style="color: #f56565;"></i>
+                                <span>Clic para contraer</span>
+                            </div>
+                        </div>
+
+                        <div class="tree-zoom-controls">
+                            <button class="tree-zoom-btn" onclick="treeZoomIn()" title="Acercar">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                            <button class="tree-zoom-btn" onclick="treeZoomOut()" title="Alejar">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                            <button class="tree-zoom-btn" onclick="treeResetZoom()" title="Resetear Zoom">
+                                <i class="fas fa-sync"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para crear zona -->
+<div id="createZoneModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal" onclick="closeModal('createZoneModal')"><i class="fas fa-times"></i></span>
+        <h2><i class="fas fa-draw-polygon"></i> Crear Nueva Zona con Área</h2>
+        <form id="createZoneForm">
+            <div class="input-group">
+                <label>ID de la Zona *</label>
+                <input type="text" id="zoneId" required placeholder="ej. Z004">
+            </div>
+            <div class="input-group">
+                <label>Nombre *</label>
+                <input type="text" id="zoneName" required placeholder="ej. Zona Centro">
+            </div>
+            <div class="input-group">
+                <label>Descripción</label>
+                <input type="text" id="zoneDesc" placeholder="Descripción de la zona">
+            </div>
+            <div class="input-group">
+                <label>Población Afectada</label>
+                <input type="number" id="zonePop" value="0" min="0">
+            </div>
+            <div class="input-group">
+                <label>Nivel de Urgencia *</label>
+                <select id="zoneUrgency" required>
+                    <option value="BAJA">Baja</option>
+                    <option value="MEDIA">Media</option>
+                    <option value="ALTA">Alta</option>
+                    <option value="CRITICA">Crítica</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Radio de Cobertura (metros) *</label>
+                <div class="slider-container">
+                    <input type="range" id="zoneRadius" min="100" max="5000" value="500" step="50">
+                    <div class="slider-value"><span id="radiusValue">500</span> metros</div>
+                </div>
+            </div>
+            <div class="input-group">
+                <label>Coordenadas Centro</label>
+                <input type="text" id="zoneCoords" readonly>
+            </div>
+            <div id="addressDisplay" class="address-info" style="display: none;">
+                <strong><i class="fas fa-map-marker-alt"></i> Dirección aproximada:</strong><br>
+                <span id="addressText">Cargando...</span>
+            </div>
+            <button type="submit" class="btn-primary"><i class="fas fa-plus-circle"></i> Crear Zona</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    const API_URL = 'http://localhost:8082/api';
+    let currentUser = null;
+    let map = null;
+    let currentMode = 'select';
+    let selectedPoints = [];
+    let zonas = [];
+    let zoneCircles = [];
+    let currentRoutingControl = null;
+    let tempCircle = null;
+    let treeData = {
+        id: "root",
+        name: "Distribución Central",
+        quantity: 0,
+        priority: 10,
+        children: []
+    };
+    let treeSvg, treeG, d3Tree, treeRoot, treeZoom;
+    const treeWidth = 1000;
+    const treeHeight = 700;
+    const treeNodeRadius = 25;
+
+    //Datos panel de Administración
+    // Datos en memoria
+let zonasData        = [];
+let recursosData     = [];
+let equiposData      = [];
+let usuariosData     = [];
+let asignacionesData = [];
+let currentTab       = 'inicio'; // Pestaña actual activa
+
+// Estado de edición
+let editingZonaId = null;   // null = creando, distinto de null = editando
+// =======================
+// DATOS PARA ESTADÍSTICAS
+// =======================
+
+let recursos = [];      // recursos del sistema (camillas, ambulancias, etc.)
+let equipos = [];       // equipos de rescate
+let evacuaciones = [];  // evacuaciones planificadas/ejecutadas
+
+// === GRÁFICAS – VARIABLES GLOBALES ===
+let chartZonasUrgenciaChart = null;
+let chartRecursosTipoChart = null;
+let chartEquiposEstadoChart = null;
+let chartEvacuacionesProgresoChart = null;
+
+function destroyCharts() {
+    if (chartZonasUrgenciaChart) chartZonasUrgenciaChart.destroy();
+    if (chartRecursosTipoChart) chartRecursosTipoChart.destroy();
+    if (chartEquiposEstadoChart) chartEquiposEstadoChart.destroy();
+    if (chartEvacuacionesProgresoChart) chartEvacuacionesProgresoChart.destroy();
+}
+
+    // Geocoding inverso para obtener direcciones
+    async function getAddress(lat, lng) {
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+            const data = await response.json();
+            return data.display_name || 'Dirección no disponible';
+        } catch (error) {
+            return 'Error obteniendo dirección';
+        }
+    }
+
+    async function checkApiConnection() {
+        try {
+            // Intentar con /health primero, si falla intentar con /estadisticas
+            let response = await fetch(`${API_URL}/health`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                mode: 'cors'
+            });
+            
+            // Si /health falla, intentar con /estadisticas
+            if (!response.ok && response.status === 404) {
+                response = await fetch(`${API_URL}/estadisticas`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' },
+                    mode: 'cors'
+                });
+            }
+            
+            if (response.ok) {
+                document.getElementById('apiIndicator').classList.remove('error');
+                document.getElementById('apiIndicator').classList.add('connected');
+                document.getElementById('apiStatus').textContent = 'API Conectada';
+                return true;
+            } else {
+                // Si es un error 405, mostrar mensaje más específico
+                if (response.status === 405) {
+                    const errorData = await response.json().catch(() => ({}));
+                    console.error('Error 405 - Método no permitido:', errorData);
+                    document.getElementById('apiIndicator').classList.remove('connected');
+                    document.getElementById('apiIndicator').classList.add('error');
+                    document.getElementById('apiStatus').textContent = 'Error de método HTTP';
+                    return false;
+                }
+                throw new Error(`HTTP ${response.status}`);
+            }
+        } catch (error) {
+            console.error('Error de conexión API:', error);
+            document.getElementById('apiIndicator').classList.remove('connected');
+            document.getElementById('apiIndicator').classList.add('error');
+            document.getElementById('apiStatus').textContent = 'API Desconectada';
+            return false;
+        }
+    }
+
+    // Restaurar sesión desde localStorage al cargar la página
+    window.addEventListener('load', () => {
+        const savedUser = localStorage.getItem('currentUser');
+        if (savedUser) {
+            try {
+                currentUser = JSON.parse(savedUser);
+                // Si hay usuario guardado, mostrar el dashboard
+                document.getElementById('loginPage').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+                document.getElementById('userInfo').innerHTML = `<i class="fas fa-user"></i> ${currentUser.nombre}`;
+                // Cargar datos del panel de inicio
+                if (typeof loadInicioData === 'function') {
+                    loadInicioData();
+                }
+            } catch (e) {
+                console.error('Error restaurando sesión:', e);
+                localStorage.removeItem('currentUser');
+            }
+        }
+        
+        checkApiConnection();
+        setInterval(checkApiConnection, 30000);
+    });
+
+    // Login
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const loginBtn = document.getElementById('loginBtn');
+
+        loginBtn.disabled = true;
+        loginBtn.textContent = 'Conectando...';
+
+        try {
+            const response = await fetch(`${API_URL}/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                mode: 'cors',
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await response.json();
+
+if (data.success) {
+    currentUser = data.user;
+    // Guardar usuario en localStorage para persistencia de sesión
+    localStorage.setItem('currentUser', JSON.stringify(data.user));
+    showMessage('loginSuccess', '¡Inicio de sesión exitoso!');
+
+    setTimeout(() => {
+        document.getElementById('loginPage').style.display = 'none';
+        document.getElementById('dashboard').style.display = 'block';
+        document.getElementById('userInfo').innerHTML = `<i class="fas fa-user"></i> ${data.user.nombre}`;
+
+        // cargar datos del panel de inicio
+        loadInicioData();
+    }, 1000);
+}
+ else {
+                showMessage('loginError', data.message || 'Credenciales inválidas');
+            }
+        } catch (error) {
+            showMessage('loginError', 'Error de conexión con el servidor');
+        } finally {
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Ingresa Aquí';
+        }
+    });
+
+    // Register
+    document.getElementById('showRegisterLink').addEventListener('click', function(e) {
+        e.preventDefault();
+        document.getElementById('loginPage').style.display = 'none';
+        document.getElementById('registerPage').style.display = 'flex';
+    });
+
+    document.getElementById('backToLoginBtn').addEventListener('click', function() {
+        document.getElementById('registerPage').style.display = 'none';
+        document.getElementById('loginPage').style.display = 'flex';
+    });
+
+    document.getElementById('regRol').addEventListener('change', function() {
+        const operadorFields = document.getElementById('operadorFields');
+        const adminFields = document.getElementById('adminFields');
+
+        if (this.value === 'ADMINISTRADOR') {
+            operadorFields.style.display = 'none';
+            adminFields.style.display = 'block';
+        } else {
+            operadorFields.style.display = 'block';
+            adminFields.style.display = 'none';
+        }
+    });
+
+    document.getElementById('registerForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const registerBtn = document.getElementById('registerBtn');
+        registerBtn.disabled = true;
+        registerBtn.textContent = 'Creando cuenta...';
+
+        const rol = document.getElementById('regRol').value;
+        const userData = {
+            nombre: document.getElementById('regNombre').value,
+            apellido: document.getElementById('regApellido').value,
+            email: document.getElementById('regEmail').value,
+            username: document.getElementById('regUsername').value,
+            password: document.getElementById('regPassword').value,
+            rol: rol
+        };
+
+        if (rol === 'OPERADOR_EMERGENCIA') {
+            userData.especialidad = document.getElementById('regEspecialidad').value || 'Emergencias';
+            userData.ubicacion = document.getElementById('regUbicacion').value || 'Sin asignar';
+        } else {
+            userData.departamento = document.getElementById('regDepartamento').value || 'General';
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                mode: 'cors',
+                body: JSON.stringify(userData)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showMessage('registerSuccess', '¡Cuenta creada exitosamente! Redirigiendo...');
+
+                setTimeout(() => {
+                    document.getElementById('registerForm').reset();
+                    document.getElementById('registerPage').style.display = 'none';
+                    document.getElementById('loginPage').style.display = 'flex';
+                    showMessage('loginSuccess', 'Cuenta creada. Puedes iniciar sesión.');
+                }, 2000);
+            } else {
+                showMessage('registerError', data.message || 'Error al crear la cuenta');
+            }
+        } catch (error) {
+            showMessage('registerError', 'Error de conexión con el servidor');
+        } finally {
+            registerBtn.disabled = false;
+            registerBtn.textContent = 'Crear Cuenta';
+        }
+    });
+
+    function showMessage(elementId, message) {
+        const element = document.getElementById(elementId);
+        element.textContent = message;
+        element.style.display = 'block';
+        setTimeout(() => element.style.display = 'none', 5000);
+    }
+
+// ===========================================================
+// PANEL DE ESTADÍSTICAS — TOTALMENTE FUNCIONAL
+// ===========================================================
+
+    async function loadEstadisticasTab() {
+
+        console.log("Cargando estadísticas del sistema…");
+
+        try {
+            // 1. Obtener datos actualizados directamente
+            const [zonasRes, recursosRes, equiposRes, evacRes] = await Promise.all([
+                fetch(`${API_URL}/zonas`).catch(() => ({ ok: false, json: () => Promise.resolve([]) })),
+                fetch(`${API_URL}/recursos`).catch(() => ({ ok: false, json: () => Promise.resolve([]) })),
+                fetch(`${API_URL}/equipos`).catch(() => ({ ok: false, json: () => Promise.resolve([]) })),
+                fetch(`${API_URL}/evacuaciones`).catch(() => ({ ok: false, json: () => Promise.resolve([]) }))
+            ]);
+
+            const [zonasDataActual, recursosDataActual, equiposDataActual, evacDataActual] = await Promise.all([
+                zonasRes.ok ? zonasRes.json() : [],
+                recursosRes.ok ? recursosRes.json() : [],
+                equiposRes.ok ? equiposRes.json() : [],
+                evacRes.ok ? evacRes.json() : []
+            ]);
+
+            // Actualizar variables globales
+            zonas = zonasDataActual;
+            recursos = recursosDataActual;
+            equipos = equiposDataActual;
+            evacuaciones = evacDataActual;
+
+            // ============================================
+            // 1. ACTUALIZAR TARJETAS DEL RESUMEN NUMÉRICO
+            // ============================================
+
+            document.getElementById("statsTotalZonas").textContent = zonas.length;
+            document.getElementById("statsTotalRecursos").textContent = recursos.length;
+            document.getElementById("statsTotalEquipos").textContent = equipos.length;
+            document.getElementById("statsTotalEvacuaciones").textContent = evacuaciones.length;
+
+        // ============================================
+        // 2. CALCULAR DATOS PARA GRÁFICAS
+        // ============================================
+
+        // Zonas por urgencia
+        const urgLevelCount = {
+            alta: zonas.filter(z => z.nivelUrgencia === "ALTA" || z.urgencia === "ALTA").length,
+            media: zonas.filter(z => z.nivelUrgencia === "MEDIA" || z.urgencia === "MEDIA").length,
+            critica: zonas.filter(z => z.nivelUrgencia === "CRITICA" || z.urgencia === "CRITICA").length
+        };
+
+        // Recursos por tipo
+        const recursosPorTipo = {};
+        recursos.forEach(r => {
+            recursosPorTipo[r.tipo] = (recursosPorTipo[r.tipo] || 0) + 1;
+        });
+
+        // Equipos por estado
+        const equiposEstados = {
+            disponibles: equipos.filter(e => e.estado === "DISPONIBLE").length,
+            ocupados: equipos.filter(e => e.estado === "OCUPADO").length,
+            enRuta: equipos.filter(e => e.estado === "EN_RUTA").length
+        };
+
+        // Evacuaciones (completas vs pendientes)
+        const evacuacionesCount = {
+            completadas: evacuaciones.filter(ev => ev.completada === true).length,
+            pendientes: evacuaciones.filter(ev => ev.completada === false).length,
+        };
+
+        // ============================================
+        // 3. DESTRUIR GRÁFICAS ANTERIORES
+        // ============================================
+
+        destroyCharts();
+
+        // ============================================
+        // 4. GENERAR NUEVAS GRÁFICAS
+        // ============================================
+
+        // ---------- (a) Zonas por urgencia ----------
+        const ctxZ = document.getElementById("chartZonasUrgencia");
+        if (ctxZ) {
+            chartZonasUrgenciaChart = new Chart(ctxZ, {
+                type: "bar",
+                data: {
+                    labels: ["Alta", "Media", "Crítica"],
+                    datasets: [{
+                        data: [
+                            urgLevelCount.alta,
+                            urgLevelCount.media,
+                            urgLevelCount.critica
+                        ],
+                        backgroundColor: ["#FF9800", "#FFC107", "#F44336"]
+                    }]
+                },
+                options: { responsive: true }
+            });
+        }
+
+        // ---------- (b) Recursos por tipo ----------
+        const ctxR = document.getElementById("chartRecursosTipo");
+        if (ctxR) {}                
