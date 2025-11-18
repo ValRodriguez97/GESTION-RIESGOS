@@ -3117,4 +3117,523 @@ if (data.success) {
 
         // ---------- (b) Recursos por tipo ----------
         const ctxR = document.getElementById("chartRecursosTipo");
-        if (ctxR) {}                
+        if (ctxR) {            chartRecursosTipoChart = new Chart(ctxR, {
+                type: "bar",
+                data: {
+                    labels: Object.keys(recursosPorTipo),
+                    datasets: [{
+                        data: Object.values(recursosPorTipo),
+                        backgroundColor: "#42A5F5"
+                    }]
+                },
+                options: { responsive: true }
+            });
+        }
+
+        // ---------- (c) Equipos por estado ----------
+        const ctxE = document.getElementById("chartEquiposEstado");
+        if (ctxE) {
+            chartEquiposEstadoChart = new Chart(ctxE, {
+                type: "doughnut",
+                data: {
+                    labels: ["Disponible", "Ocupado", "En ruta"],
+                    datasets: [{
+                        data: [
+                            equiposEstados.disponibles,
+                            equiposEstados.ocupados,
+                            equiposEstados.enRuta
+                        ],
+                        backgroundColor: ["#4CAF50", "#FFC107", "#03A9F4"]
+                    }]
+                },
+                options: { responsive: true }
+            });
+        }
+
+        // ---------- (d) Evacuaciones ----------
+        const ctxEv = document.getElementById("chartEvacuacionesProgreso");
+        if (ctxEv) {
+            chartEvacuacionesProgresoChart = new Chart(ctxEv, {
+                type: "doughnut",
+                data: {
+                    labels: ["Completadas", "Pendientes"],
+                    datasets: [{
+                        data: [
+                            evacuacionesCount.completadas,
+                            evacuacionesCount.pendientes
+                        ],
+                        backgroundColor: ["#4CAF50", "#FFC107"]
+                    }]
+                },
+                options: { responsive: true }
+            });
+        }
+
+        console.log("✔ Estadísticas cargadas correctamente.");
+
+    } catch (error) {
+        console.error("Error cargando estadísticas:", error);
+    }
+}
+
+// Función para renderizar todas las gráficas
+function renderCharts(stats) {
+    // Destruir gráficas existentes si las hay
+    destroyCharts();
+
+    // Gráfica de Zonas por Urgencia
+    if (stats.zonasPorUrgencia) {
+        renderZonasChart(stats.zonasPorUrgencia);
+    }
+
+    // Gráfica de Recursos por Tipo
+    if (stats.recursosPorTipo) {
+        renderRecursosChart(stats.recursosPorTipo);
+    }
+
+    // Gráfica de Equipos por Estado
+    if (stats.equiposPorEstado) {
+        renderEquiposChart(stats.equiposPorEstado);
+    }
+
+    // Gráfica de Progreso de Evacuaciones
+    if (stats.porcentajeEvacuacionesCompletadas !== undefined) {
+        renderEvacuacionesChart(stats);
+    }
+}
+
+function destroyCharts() {
+    // Destruir instancias anteriores de Chart.js
+    if (window.zonasChart) window.zonasChart.destroy();
+    if (window.recursosChart) window.recursosChart.destroy();
+    if (window.equiposChart) window.equiposChart.destroy();
+    if (window.evacuacionesChart) window.evacuacionesChart.destroy();
+}
+
+function renderZonasChart(zonasPorUrgencia) {
+    const ctx = document.getElementById('chartZonasUrgencia').getContext('2d');
+    const labels = Object.keys(zonasPorUrgencia);
+    const data = Object.values(zonasPorUrgencia);
+    
+    // Colores basados en el nivel de urgencia
+    const backgroundColors = labels.map(label => {
+        switch(label.toUpperCase()) {
+            case 'CRÍTICA': return '#F44336';
+            case 'ALTA': return '#FF9800';
+            case 'MEDIA': return '#FFC107';
+            case 'BAJA': return '#4CAF50';
+            default: return '#9E9E9E';
+        }
+    });
+
+    window.zonasChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Zonas por Nivel de Urgencia',
+                data: data,
+                backgroundColor: backgroundColors,
+                borderColor: backgroundColors.map(color => color),
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.parsed.y} zonas`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    },
+                    title: {
+                        display: true,
+                        text: 'Cantidad de Zonas'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Nivel de Urgencia'
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderRecursosChart(recursosPorTipo) {
+    const ctx = document.getElementById('chartRecursosTipo').getContext('2d');
+    const labels = Object.keys(recursosPorTipo);
+    const data = Object.values(recursosPorTipo);
+    
+    window.recursosChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: [
+                    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
+                    '#9966FF', '#FF9F40', '#8AC926', '#1982C4'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        boxWidth: 12
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = Math.round((context.parsed / total) * 100);
+                            return `${context.label}: ${context.parsed} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderEquiposChart(equiposPorEstado) {
+    const ctx = document.getElementById('chartEquiposEstado').getContext('2d');
+    const labels = Object.keys(equiposPorEstado);
+    const data = Object.values(equiposPorEstado);
+    
+    window.equiposChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: [
+                    '#4CAF50', // Disponible
+                    '#2196F3', // En tránsito
+                    '#FF9800', // En operación
+                    '#9C27B0', // En descanso
+                    '#607D8B', // Mantenimiento
+                    '#F44336'  // No disponible
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'right'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = Math.round((context.parsed / total) * 100);
+                            return `${context.label}: ${context.parsed} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderEvacuacionesChart(stats) {
+    const ctx = document.getElementById('chartEvacuacionesProgreso').getContext('2d');
+    const completadas = stats.porcentajeEvacuacionesCompletadas || 0;
+    const pendientes = 100 - completadas;
+
+    window.evacuacionesChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Completadas', 'Pendientes'],
+            datasets: [{
+                data: [completadas, pendientes],
+                backgroundColor: ['#4CAF50', '#FFC107'],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'right'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.label}: ${context.parsed}%`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Función para mostrar notificaciones (si no la tienes)
+function showNotification(message, type = 'info') {
+    // Si ya tienes esta función, no la dupliques
+    if (typeof window.showNotification === 'function') return;
+    
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'exclamation-triangle' : 'info'}-circle"></i>
+        ${message}
+    `;
+    
+    // Agregar estilos si no existen
+    if (!document.querySelector('#notification-styles')) {
+        const styles = document.createElement('style');
+        styles.id = 'notification-styles';
+        styles.textContent = `
+            .notification {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                border-radius: 6px;
+                color: white;
+                z-index: 10000;
+                max-width: 300px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                animation: slideIn 0.3s ease;
+            }
+            .notification.success { background: #4CAF50; }
+            .notification.error { background: #F44336; }
+            .notification.info { background: #2196F3; }
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+        `;
+        document.head.appendChild(styles);
+    }
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 5000);
+}
+    // ==========================================================
+    //   CARGA DE DATOS PARA LA PESTAÑA INICIO
+    // ==========================================================
+
+    async function loadInicioData() {
+        try {
+            // Mostrar estados de carga
+            document.getElementById('zonasDisplay').innerHTML = `
+                <div class="loading-state">
+                    <i class="fas fa-spinner fa-spin"></i> Cargando zonas...
+                </div>`;
+            document.getElementById('recursosDisplay').innerHTML = `
+                <div class="loading-state">
+                    <i class="fas fa-spinner fa-spin"></i> Cargando recursos...
+                </div>`;
+            document.getElementById('equiposDisplay').innerHTML = `
+                <div class="loading-state">
+                    <i class="fas fa-spinner fa-spin"></i> Cargando equipos...
+                </div>`;
+
+            // Pedimos todo en paralelo
+            const [statsRes, zonasRes, recursosRes, equiposRes, evacRes] = await Promise.all([
+                fetch(`${API_URL}/estadisticas`, { method: 'GET' }),
+                fetch(`${API_URL}/zonas`, { method: 'GET' }),
+                fetch(`${API_URL}/recursos`, { method: 'GET' }),
+                fetch(`${API_URL}/equipos`, { method: 'GET' }),
+                fetch(`${API_URL}/evacuaciones`, { method: 'GET' })
+            ]);
+
+            const [stats, zonasData, recursosData, equiposData, evacData] = await Promise.all([
+                safeJson(statsRes),
+                safeJson(zonasRes),
+                safeJson(recursosRes),
+                safeJson(equiposRes),
+                safeJson(evacRes)
+            ]);
+
+            // -------------------------
+            // 1. Tarjetas resumen
+            // -------------------------
+            // Totales (si no vienen en /estadisticas, los calculamos)
+            const totalZonas = (stats && stats.totalZonas) ?? (Array.isArray(zonasData) ? zonasData.length : 0);
+            const totalRecursos = (stats && stats.totalRecursos) ?? calcularTotalRecursos(recursosData);
+            const totalEquipos = (stats && stats.totalEquipos) ?? (Array.isArray(equiposData) ? equiposData.length : 0);
+            const totalEvacuaciones = (stats && stats.totalEvacuaciones) ?? (Array.isArray(evacData) ? evacData.length : 0);
+
+            // Zonas críticas
+            const numCriticas = Array.isArray(zonasData)
+                ? zonasData.filter(z => (z.nivelUrgencia || z.urgencia) === 'CRITICA').length
+                : 0;
+
+            // Porcentaje recursos disponibles
+            const porcRecursos = (stats && stats.porcentajeRecursosDisponibles) ??
+                calcularPorcentajeRecursosDisponibles(recursosData);
+
+            // Equipos disponibles
+            const equiposDisponibles = Array.isArray(equiposData)
+                ? equiposData.filter(eq => normalizarEstado(eq.estado) === 'DISPONIBLE').length
+                : 0;
+
+            // Progreso evacuaciones
+            const progresoEvac = (stats && stats.porcentajeEvacuacionesCompletadas) ??
+                calcularPorcentajeEvacuaciones(evacData);
+
+            // Poner valores en las tarjetas
+            document.getElementById('totalZonas').textContent = totalZonas;
+            document.getElementById('zonasCriticas').textContent = `${numCriticas} críticas`;
+
+            document.getElementById('totalRecursos').textContent = totalRecursos;
+            document.getElementById('recursosDisponibles').textContent =
+                porcRecursos !== null ? `${porcRecursos}% disponibilidad` : 'Sin datos de disponibilidad';
+
+            document.getElementById('totalEquipos').textContent = totalEquipos;
+            document.getElementById('equiposDisponibles').textContent = `${equiposDisponibles} disponibles`;
+
+            document.getElementById('totalEvacuaciones').textContent = totalEvacuaciones;
+            document.getElementById('evacuacionesProgreso').textContent =
+                progresoEvac !== null ? `${progresoEvac}% progreso` : 'Sin datos de progreso';
+
+            // -------------------------
+            // 2. Render de listas
+            // -------------------------
+            renderZonasInicio(zonasData);
+            renderRecursosInicio(recursosData);
+            renderEquiposInicio(equiposData);
+
+            // Cargar ColaPrioridad y MapaRecursos
+            await loadColaPrioridad();
+            await loadMapaRecursos();
+
+        } catch (error) {
+            console.error('Error cargando datos de inicio:', error);
+            document.getElementById('zonasDisplay').innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Error cargando zonas</h3>
+                    <p>Revisa la consola del navegador o la API.</p>
+                </div>`;
+            document.getElementById('recursosDisplay').innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Error cargando recursos</h3>
+                </div>`;
+            document.getElementById('equiposDisplay').innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Error cargando equipos</h3>
+                </div>`;
+        }
+    }
+
+    // Helper para leer JSON de forma segura
+    async function safeJson(response) {
+        try {
+            if (!response || !response.ok) return null;
+            return await response.json();
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // ==========================
+    //   Helpers de cálculo
+    // ==========================
+
+    function calcularTotalRecursos(recursos) {
+        if (!Array.isArray(recursos)) return 0;
+        return recursos.reduce((sum, r) => {
+            const cant = r.cantidadTotal ?? r.cantidadDisponible ?? r.cantidad ?? 1;
+            return sum + (Number.isFinite(cant) ? cant : 0);
+        }, 0);
+    }
+
+    function calcularPorcentajeRecursosDisponibles(recursos) {
+        if (!Array.isArray(recursos) || recursos.length === 0) return null;
+
+        let total = 0;
+        let disponibles = 0;
+
+        recursos.forEach(r => {
+            const cantTotal = r.cantidadTotal ?? r.cantidad ?? 1;
+            const cantDisp = r.cantidadDisponible ?? (r.disponible === true ? cantTotal : 0);
+
+            total += Number.isFinite(cantTotal) ? cantTotal : 0;
+            disponibles += Number.isFinite(cantDisp) ? cantDisp : 0;
+        });
+
+        if (!total) return null;
+        return Math.round((disponibles / total) * 100);
+    }
+
+    function normalizarEstado(estado) {
+        if (!estado) return '';
+        return String(estado).toUpperCase();
+    }
+
+    function calcularPorcentajeEvacuaciones(evac) {
+        if (!Array.isArray(evac) || evac.length === 0) return null;
+
+        const completadas = evac.filter(e =>
+            ['COMPLETADA', 'FINALIZADA'].includes(normalizarEstado(e.estado))
+        ).length;
+
+        return Math.round((completadas / evac.length) * 100);
+    }
+
+    // ==========================
+    //   Pintar ZONAS en Inicio
+    // ==========================
+    function renderZonasInicio(zonasData) {
+        const cont = document.getElementById('zonasDisplay');
+
+        if (!Array.isArray(zonasData) || zonasData.length === 0) {
+            cont.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-map-marked-alt"></i>
+                    <h3>No hay zonas registradas</h3>
+                    <p>Agrega zonas desde la API o el panel de administración.</p>
+                </div>`;
+            return;
+        }
+
+        cont.innerHTML = '';
+
+        zonasData.forEach(z => {
+            const urgencia = (z.nivelUrgencia || z.urgencia || 'DESCONOCIDA').toUpperCase();
+            const poblacion = z.poblacionAfectada ?? z.personasAfectadas ?? 0;
+
+            let urgencyClass = 'urgency-media';
+            if (urgencia === 'CRITICA') urgencyClass = 'urgency-critica';
+            else if (urgencia === 'ALTA') urgencyClass = 'urgency-alta';
+            else if (urgencia === 'BAJA') urgencyClass = 'urgency-baja';
+
+            const card = document.createElement('div');
+            card.className = 'zone-card';
+            card.innerHTML = `
+                <div class="zone-header">
+                    <div class="zone-title">${z.nombre || z.id || 'Zona sin nombre'}</div>
+                    <div class="zone-urgency ${urgencyClass}">${urgencia}</div>
+                </div>
+                <div class="zone-info">               
