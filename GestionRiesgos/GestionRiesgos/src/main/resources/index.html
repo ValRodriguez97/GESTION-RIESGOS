@@ -1039,3 +1039,521 @@
     background: #edf2f7;
     border-radius: 4px;
 }
+
+.recurso-cantidad {
+    font-weight: 700;
+    color: #4299e1;
+}
+
+.empty-state-small {
+    padding: 20px;
+    text-align: center;
+    color: #718096;
+    background: #f7fafc;
+    border-radius: 8px;
+}
+
+.empty-state-small i {
+    font-size: 2rem;
+    margin-bottom: 12px;
+    color: #cbd5e0;
+}
+
+/* ===================================
+   LISTA DE EQUIPOS
+   =================================== */
+.teams-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.team-card {
+    background: #f7fafc;
+    border: 1px solid #e1e8ed;
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s;
+}
+
+.team-card:hover {
+    background: white;
+    border-color: #cbd5e0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+}
+
+.team-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 1;
+}
+
+.team-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.team-details {
+    flex: 1;
+}
+
+.team-name {
+    font-weight: 700;
+    color: #1a202c;
+    margin-bottom: 4px;
+}
+
+.team-type {
+    color: #718096;
+    font-size: 0.85rem;
+}
+
+.team-status {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.status-badge {
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.status-disponible {
+    background: #c6f6d5;
+    color: #22543d;
+}
+
+.status-operacion {
+    background: #feebc8;
+    color: #c05621;
+}
+
+.status-transito {
+    background: #bee3f8;
+    color: #2c5282;
+}
+
+.efficiency-bar {
+    width: 100px;
+    height: 8px;
+    background: #e1e8ed;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.efficiency-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #43e97b 0%, #38f9d7 100%);
+    transition: width 0.3s;
+}
+
+/* ===================================
+   ACCIONES RÁPIDAS
+   =================================== */
+.quick-actions {
+    background: white;
+    padding: 24px;
+    border-radius: 8px;
+    border: 1px solid #e1e8ed;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+}
+
+.quick-actions h3 {
+    color: #1a202c;
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.action-btn {
+    background: #f7fafc;
+    border: 2px solid #e1e8ed;
+    padding: 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: #2d3748;
+    font-weight: 600;
+}
+
+.action-btn i {
+    font-size: 1.8rem;
+    color: #667eea;
+}
+
+.action-btn:hover {
+    background: white;
+    border-color: #667eea;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
+}
+
+/* ===================================
+   ESTADOS DE CARGA
+   =================================== */
+.loading-state {
+    text-align: center;
+    padding: 40px;
+    color: #718096;
+    font-size: 1.1rem;
+}
+
+.loading-state i {
+    font-size: 2rem;
+    margin-bottom: 12px;
+    display: block;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #718096;
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    color: #cbd5e0;
+    display: block;
+}
+
+.empty-state h3 {
+    color: #4a5568;
+    margin-bottom: 8px;
+}
+
+/* ===================================
+   RESPONSIVE DESIGN
+   =================================== */
+@media (max-width: 1024px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .zones-grid {
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 768px) {
+    .tabs-header {
+        padding: 0 16px;
+    }
+    
+    .tab-button {
+        padding: 12px 16px;
+        font-size: 0.85rem;
+    }
+    
+    .tab-button span {
+        display: none; /* Ocultar texto en móviles, solo iconos */
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stat-card {
+        flex-direction: row;
+    }
+    
+    .stat-icon {
+        width: 56px;
+        height: 56px;
+        font-size: 24px;
+    }
+    
+    .zones-grid {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+    }
+    
+    .zone-card {
+        min-width: 250px;
+    }
+    
+    .resources-grid {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+    }
+    
+    .resource-card {
+        min-width: 150px;
+    }
+    
+    .actions-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .team-status {
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    .welcome-section h1 {
+        font-size: 1.5rem;
+    }
+    
+    .stat-value {
+        font-size: 2rem;
+    }
+    
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .team-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .team-status {
+        width: 100%;
+        flex-direction: row;
+        justify-content: space-between;
+    }
+}
+
+/* Ajustes para tamaño de gráficas (estadísticas) - CENTRAR y limitar ancho */
+.section-container {
+    /* ...existing styles... */
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* centra el contenido (título ya dentro) */
+    gap: 12px;
+}
+
+.section-container canvas {
+    max-width: 600px;   /* ancho máximo razonable */
+    width: 100%;
+    height: auto;       /* dejar que Chart.js ajuste la altura según aspectRatio */
+    display: block;
+    margin: 0 auto;
+}
+
+/* mantener también reglas responsive si quieres tamaños menores */
+@media (max-width: 768px) {
+    .section-container canvas { max-width: 480px; }
+}
+@media (max-width: 480px) {
+    .section-container canvas { max-width: 360px; }
+}
+
+/* Arbol de distribución */
+
+.tree-controls-panel {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e1e8ed;
+        }
+
+        .tree-controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .tree-visualization-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e1e8ed;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #tree-svg {
+            width: 100%;
+            height: 700px;
+            cursor: grab;
+        }
+
+        #tree-svg:active {
+            cursor: grabbing;
+        }
+
+        .d3-node circle {
+            fill: #fff;
+            stroke-width: 3px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .d3-node circle:hover {
+            filter: brightness(0.9);
+            transform: scale(1.1);
+        }
+
+        .d3-node text {
+            font-size: 12px;
+            font-weight: 600;
+            pointer-events: none;
+        }
+
+        .d3-link {
+            fill: none;
+            stroke-width: 2px;
+            transition: all 0.3s;
+        }
+
+        .d3-node.collapsed circle {
+            stroke-width: 4px;
+        }
+
+        .tree-legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.95);
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border: 2px solid #e2e8f0;
+            z-index: 10;
+        }
+
+        .tree-legend h4 {
+            color: #2d3748;
+            font-size: 0.9rem;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+
+        .tree-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+            color: #4a5568;
+        }
+
+        .tree-legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .tree-zoom-controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 10;
+        }
+
+        .tree-zoom-btn {
+            width: 40px;
+            height: 40px;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1.2rem;
+            color: #4a5568;
+        }
+
+        .tree-zoom-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+            transform: scale(1.1);
+        }
+
+        .tree-stats-box {
+            background: #f7fafc;
+            padding: 16px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .tree-stats-box h4 {
+            color: #2d3748;
+            font-size: 1rem;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .tree-stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            color: #4a5568;
+            font-size: 0.9rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .tree-stat-item:last-child {
+            border-bottom: none;
+        }
+
+        .tree-stat-value {
+            font-weight: 700;
+            color: #667eea;
+        }
+
+
+       .route-preview-box {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    margin: 15px 0;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.route-preview-box h4 {
+    margin: 0 0 15px 0;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
