@@ -6757,3 +6757,523 @@ async function loadRutasHistorial() {
         });
     } catch (err) {
         console.error('Error cargando historial de rutas:', err);
+                showNotification('No se pudo cargar el historial de rutas', 'error');
+    }
+}
+// PLANIFICAR EVACUACIÓN
+async function planificarEvacuacion(event) {
+    event.preventDefault();
+
+    const evacData = {
+        id: document.getElementById('evacId').value.trim(),
+        zonaOrigen: document.getElementById('evacOrigin').value,
+        zonaDestino: document.getElementById('evacDestination').value,
+        personasAEvacuar: parseInt(document.getElementById('evacPeople').value || '0', 10),
+        nivelUrgencia: document.getElementById('evacUrgency').value,
+        responsable: document.getElementById('evacResponsible').value.trim()
+    };
+
+    if (!evacData.id || !evacData.zonaOrigen || !evacData.zonaDestino) {
+        showNotification('Completa todos los campos obligatorios', 'error');
+        return;
+    }
+
+    try {
+        const resp = await fetch(`${API_URL}/evacuaciones`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(evacData)
+        });
+
+        const result = await resp.json().catch(() => ({}));
+
+        if (resp.ok) {
+            showNotification('Evacuación planificada exitosamente', 'success');
+            event.target.reset();
+            await loadEvacuaciones();
+        } else {
+            showNotification(result.message || 'No se pudo planificar', 'error');
+        }
+    } catch (err) {
+        console.error('Error planificando evacuación:', err);
+        showNotification('Error de conexión', 'error');
+    }
+}
+
+// CARGAR TODAS LAS RUTAS
+async function loadAllRoutes() {
+    const container = document.getElementById('routesList');
+    if (!container) return;
+
+    try {
+        const resp = await fetch(`${API_URL}/rutas`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+        const rutas = await resp.json();
+
+        if (!Array.isArray(rutas) || rutas.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-route"></i>
+                    <h3>No hay rutas registradas</h3>
+                </div>`;
+            return;
+        }
+
+        container.innerHTML = '';
+        rutas.forEach(r => {
+            const card = document.createElement('div');
+            card.className = 'route-card';
+            card.innerHTML = `
+                <div class="route-header">
+                    <h4><i class="fas fa-route"></i> ${r.id}</h4>
+                    <span class="route-type">${r.tipo}</span>
+                </div>
+                <div class="route-info">
+                    <p><i class="fas fa-play"></i> <strong>Origen:</strong> ${r.origen?.nombre || r.origenId}</p>
+                    <p><i class="fas fa-flag-checkered"></i> <strong>Destino:</strong> ${r.destino?.nombre || r.destinoId}</p>
+                    <p><i class="fas fa-road"></i> <strong>Distancia:</strong> ${r.distancia} km</p>
+                    <p><i class="fas fa-clock"></i> <strong>Tiempo:</strong> ${r.tiempoEstimado} hrs</p>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    } catch (err) {
+        console.error('Error cargando rutas:', err);
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h3>Error cargando rutas</h3>
+            </div>`;
+    }
+}
+
+// CARGAR EVACUACIONES
+async function loadEvacuaciones() {
+    const container = document.getElementById('evacuacionesList');
+    if (!container) return;
+
+    try {
+        const resp = await fetch(`${API_URL}/evacuaciones`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+        const evacuaciones = await resp.json();
+
+        if (!Array.isArray(evacuaciones) || evacuaciones.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-ambulance"></i>
+                    <h3>No hay evacuaciones planificadas</h3>
+                </div>`;
+            return;
+        }
+
+        container.innerHTML = '';
+        evacuaciones.forEach(e => {
+            const card = document.createElement('div');
+            card.className = 'evacuation-card';
+            card.innerHTML = `
+                <div class="evacuation-header">
+                    <h4><i class="fas fa-ambulance"></i> ${e.nombre || e.id}</h4>
+                    <span class="urgency-badge urgency-${(e.nivelUrgencia || 'media').toLowerCase()}">${e.nivelUrgencia}</span>
+                </div>
+                <div class="evacuation-info">
+                    <p><strong>Personas a evacuar:</strong> ${e.personasAEvacuar}</p>
+                    <p><strong>Estado:</strong> ${e.estado}</p>
+                    <p><strong>Progreso:</strong> ${e.porcentajeCompletado || 0}%</p>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    } catch (err) {
+        console.error('Error cargando evacuaciones:', err);
+    }
+}
+    //=========================================================
+    // CARGAR DATOS DE INICIO
+    //=========================================================
+    async function loadInicioData() {
+        try {
+            document.getElementById('zonasDisplay').innerHTML = `
+                <div class="loading-state">
+                    <i class="fas fa-spinner fa-spin"></i> Cargando zonas...
+                </div>`;
+            document.getElementById('recursosDisplay').innerHTML = `
+                <div class="loading-state">
+                    <i class="fas fa-spinner fa-spin"></i> Cargando recursos...
+                </div>`;
+            document.getElementById('equiposDisplay').innerHTML = `
+                <div class="loading-state">
+                    <i class="fas fa-spinner fa-spin"></i> Cargando equipos...
+                </div>`;
+
+            const [statsRes, zonasRes, recursosRes, equiposRes, evacRes] = await Promise.all([
+                fetch(`${API_URL}/estadisticas`, { method: 'GET' }),
+                fetch(`${API_URL}/zonas`, { method: 'GET' }),
+                fetch(`${API_URL}/recursos`, { method: 'GET' }),
+                fetch(`${API_URL}/equipos`, { method: 'GET' }),
+                fetch(`${API_URL}/evacuaciones`, { method: 'GET' })
+            ]);
+
+            const [stats, zonasData, recursosData, equiposData, evacData] = await Promise.all([
+                safeJson(statsRes),
+                safeJson(zonasRes),
+                safeJson(recursosRes),
+                safeJson(equiposRes),
+                safeJson(evacRes)
+            ]);
+
+            const totalZonas = (stats && stats.totalZonas) ?? (Array.isArray(zonasData) ? zonasData.length : 0);
+            const totalRecursos = (stats && stats.totalRecursos) ?? calcularTotalRecursos(recursosData);
+            const totalEquipos = (stats && stats.totalEquipos) ?? (Array.isArray(equiposData) ? equiposData.length : 0);
+            const totalEvacuaciones = (stats && stats.totalEvacuaciones) ?? (Array.isArray(evacData) ? evacData.length : 0);
+
+            const numCriticas = Array.isArray(zonasData)
+                ? zonasData.filter(z => (z.nivelUrgencia || z.urgencia) === 'CRITICA').length
+                : 0;
+
+            const porcRecursos = (stats && stats.porcentajeRecursosDisponibles) ??
+                calcularPorcentajeRecursosDisponibles(recursosData);
+
+            const equiposDisponibles = Array.isArray(equiposData)
+                ? equiposData.filter(eq => normalizarEstado(eq.estado) === 'DISPONIBLE').length
+                : 0;
+
+            const progresoEvac = (stats && stats.porcentajeEvacuacionesCompletadas) ??
+                calcularPorcentajeEvacuaciones(evacData);
+
+            document.getElementById('totalZonas').textContent = totalZonas;
+            document.getElementById('zonasCriticas').textContent = `${numCriticas} críticas`;
+
+            document.getElementById('totalRecursos').textContent = totalRecursos;
+            document.getElementById('recursosDisponibles').textContent =
+                porcRecursos !== null ? `${porcRecursos}% disponibilidad` : 'Sin datos de disponibilidad';
+
+            document.getElementById('totalEquipos').textContent = totalEquipos;
+            document.getElementById('equiposDisponibles').textContent = `${equiposDisponibles} disponibles`;
+
+            document.getElementById('totalEvacuaciones').textContent = totalEvacuaciones;
+            document.getElementById('evacuacionesProgreso').textContent =
+                progresoEvac !== null ? `${progresoEvac}% progreso` : 'Sin datos de progreso';
+
+            renderZonasInicio(zonasData);
+            renderRecursosInicio(recursosData);
+            renderEquiposInicio(equiposData);
+
+        } catch (error) {
+            console.error('Error cargando datos de inicio:', error);
+            document.getElementById('zonasDisplay').innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Error cargando zonas</h3>
+                    <p>Revisa la consola del navegador o la API.</p>
+                </div>`;
+        }
+    }
+
+    async function safeJson(response) {
+        try {
+            if (!response || !response.ok) return null;
+            return await response.json();
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function calcularTotalRecursos(recursos) {
+        if (!Array.isArray(recursos)) return 0;
+        return recursos.reduce((sum, r) => {
+            const cant = r.cantidadTotal ?? r.cantidadDisponible ?? r.cantidad ?? 1;
+            return sum + (Number.isFinite(cant) ? cant : 0);
+        }, 0);
+    }
+
+    function calcularPorcentajeRecursosDisponibles(recursos) {
+        if (!Array.isArray(recursos) || recursos.length === 0) return null;
+
+        let total = 0;
+        let disponibles = 0;
+
+        recursos.forEach(r => {
+            const cantTotal = r.cantidadTotal ?? r.cantidad ?? 1;
+            const cantDisp = r.cantidadDisponible ?? (r.disponible === true ? cantTotal : 0);
+
+            total += Number.isFinite(cantTotal) ? cantTotal : 0;
+            disponibles += Number.isFinite(cantDisp) ? cantDisp : 0;
+        });
+
+        if (!total) return null;
+        return Math.round((disponibles / total) * 100);
+    }
+
+    function normalizarEstado(estado) {
+        if (!estado) return '';
+        return String(estado).toUpperCase();
+    }
+
+    function calcularPorcentajeEvacuaciones(evac) {
+        if (!Array.isArray(evac) || evac.length === 0) return null;
+
+        const completadas = evac.filter(e =>
+            ['COMPLETADA', 'FINALIZADA'].includes(normalizarEstado(e.estado))
+        ).length;
+
+        return Math.round((completadas / evac.length) * 100);
+    }
+
+    function renderZonasInicio(zonasData) {
+        const cont = document.getElementById('zonasDisplay');
+
+        if (!Array.isArray(zonasData) || zonasData.length === 0) {
+            cont.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-map-marked-alt"></i>
+                    <h3>No hay zonas registradas</h3>
+                    <p>Agrega zonas desde la API o el panel de administración.</p>
+                </div>`;
+            return;
+        }
+
+        cont.innerHTML = '';
+
+        zonasData.forEach(z => {
+            const urgencia = (z.nivelUrgencia || z.urgencia || 'DESCONOCIDA').toUpperCase();
+            const poblacion = z.poblacionAfectada ?? z.personasAfectadas ?? 0;
+
+            let urgencyClass = 'urgency-media';
+            if (urgencia === 'CRITICA') urgencyClass = 'urgency-critica';
+            else if (urgencia === 'ALTA') urgencyClass = 'urgency-alta';
+            else if (urgencia === 'BAJA') urgencyClass = 'urgency-baja';
+
+            const card = document.createElement('div');
+            card.className = 'zone-card';
+            card.innerHTML = `
+                <div class="zone-header">
+                    <div class="zone-title">${z.nombre || z.id || 'Zona sin nombre'}</div>
+                    <div class="zone-urgency ${urgencyClass}">${urgencia}</div>
+                </div>
+                <div class="zone-info">
+                    <div class="zone-info-item">
+                        <i class="fas fa-id-card"></i>
+                        <span><strong>ID:</strong> ${z.id ?? z.codigo ?? '-'}</span>
+                    </div>
+                    <div class="zone-info-item">
+                        <i class="fas fa-users"></i>
+                        <span><strong>Población afectada:</strong> ${poblacion}</span>
+                    </div>
+                    <div class="zone-info-item">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span><strong>Coordenadas:</strong> ${z.coordenadaX ?? z.latitud}, ${z.coordenadaY ?? z.longitud}</span>
+                    </div>
+                </div>
+            `;
+            cont.appendChild(card);
+        });
+    }
+
+    function renderRecursosInicio(recursosData) {
+        const cont = document.getElementById('recursosDisplay');
+
+        if (!Array.isArray(recursosData) || recursosData.length === 0) {
+            cont.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-box-open"></i>
+                    <h3>No hay recursos registrados</h3>
+                </div>`;
+            return;
+        }
+
+        cont.innerHTML = '';
+
+        const agrupados = {};
+        recursosData.forEach(r => {
+            const tipo = (r.tipoRecurso || r.tipo || 'OTROS').toUpperCase();
+            if (!agrupados[tipo]) {
+                agrupados[tipo] = { total: 0, disponibles: 0 };
+            }
+
+            const cantTotal = r.cantidadTotal ?? r.cantidad ?? 1;
+            const cantDisp = r.cantidadDisponible ?? (r.disponible === true ? cantTotal : 0);
+
+            agrupados[tipo].total += Number.isFinite(cantTotal) ? cantTotal : 0;
+            agrupados[tipo].disponibles += Number.isFinite(cantDisp) ? cantDisp : 0;
+        });
+
+        Object.entries(agrupados).forEach(([tipo, data]) => {
+            const porc = data.total ? Math.round((data.disponibles / data.total) * 100) : 0;
+
+            const card = document.createElement('div');
+            card.className = 'resource-card';
+            card.innerHTML = `
+                <div class="resource-icon">
+                    <i class="fas fa-box"></i>
+                </div>
+                <div class="resource-type">${tipo}</div>
+                <div class="resource-amount">${data.total}</div>
+                <div style="font-size: 0.85rem; margin-bottom: 6px;">
+                    ${data.disponibles} disponibles (${porc}%)
+                </div>
+                <div class="resource-progress">
+                    <div class="resource-progress-bar" style="width: ${porc}%;"></div>
+                </div>
+            `;
+            cont.appendChild(card);
+        });
+    }
+
+    function renderEquiposInicio(equiposData) {
+        const cont = document.getElementById('equiposDisplay');
+
+        if (!Array.isArray(equiposData) || equiposData.length === 0) {
+            cont.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-users"></i>
+                    <h3>No hay equipos registrados</h3>
+                </div>`;
+            return;
+        }
+
+        cont.innerHTML = '';
+
+        equiposData.forEach(eq => {
+            const nombre = eq.nombre || eq.nombreEquipo || ('Equipo #' + (eq.id ?? ''));
+            const tipo = eq.tipo || eq.tipoEquipo || 'Sin tipo';
+            const estado = normalizarEstado(eq.estado || 'DESCONOCIDO');
+            const eficiencia = eq.porcentajeEficiencia ?? eq.eficiencia ?? null;
+
+            let statusClass = 'status-transito';
+            if (estado === 'DISPONIBLE') statusClass = 'status-disponible';
+            else if (['EN_OPERACION', 'OPERACION', 'ACTIVO'].includes(estado)) statusClass = 'status-operacion';
+
+            const card = document.createElement('div');
+            card.className = 'team-card';
+            card.innerHTML = `
+                <div class="team-info">
+                    <div class="team-avatar">
+                        <i class="fas fa-user-shield"></i>
+                    </div>
+                    <div class="team-details">
+                        <div class="team-name">${nombre}</div>
+                        <div class="team-type">${tipo}</div>
+                    </div>
+                </div>
+                <div class="team-status">
+                    <span class="status-badge ${statusClass}">${estado}</span>
+                    <div class="efficiency-bar">
+                        <div class="efficiency-fill" style="width: ${eficiencia != null ? Math.max(0, Math.min(100, eficiencia)) : 50}%;"></div>
+                    </div>
+                </div>
+            `;
+            cont.appendChild(card);
+        });
+    }
+
+    //=========================================================
+    // ESTADISTICAS CON GRAFICAS
+    //=========================================================
+    async function loadEstadisticasTab() {
+        try {
+            const response = await fetch(`${API_URL}/estadisticas`);
+            const stats = await response.json();
+
+            document.getElementById('statsTotalZonas').textContent = stats.totalZonas || 0;
+            document.getElementById('statsTotalRecursos').textContent = stats.totalRecursos || 0;
+            document.getElementById('statsTotalEquipos').textContent = stats.totalEquipos || 0;
+            document.getElementById('statsTotalEvacuaciones').textContent = stats.totalEvacuaciones || 0;
+
+            renderCharts(stats);
+        } catch (error) {
+            console.error('Error cargando estadísticas:', error);
+        }
+    }
+
+    function renderCharts(stats) {
+
+        if (stats.zonasPorUrgencia) {
+            renderZonasChart(stats.zonasPorUrgencia);
+        }
+
+        if (stats.recursosPorTipo) {
+            renderRecursosChart(stats.recursosPorTipo);
+        }
+
+        if (stats.equiposPorEstado) {
+            renderEquiposChart(stats.equiposPorEstado);
+        }
+
+        if (stats.porcentajeEvacuacionesCompletadas !== undefined) {
+            renderEvacuacionesChart(stats);
+        }
+    }
+
+    function destroyCharts() {
+        if (window.zonasChart) window.zonasChart.destroy();
+        if (window.recursosChart) window.recursosChart.destroy();
+        if (window.equiposChart) window.equiposChart.destroy();
+        if (window.evacuacionesChart) window.evacuacionesChart.destroy();
+    }
+
+    function renderZonasChart(zonasPorUrgencia) {
+        const ctx = document.getElementById('chartZonasUrgencia').getContext('2d');
+        if (!ctx) return;
+        const labels = Object.keys(zonasPorUrgencia);
+        const data = Object.values(zonasPorUrgencia);
+        
+        const backgroundColors = labels.map(label => {
+            switch(label.toUpperCase()) {
+                case 'CRÍTICA': return '#F44336';
+                case 'ALTA': return '#FF9800';
+                case 'MEDIA': return '#FFC107';
+                case 'BAJA': return '#4CAF50';
+                default: return '#9E9E9E';
+            }
+        });
+
+        window.zonasChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Zonas por Nivel de Urgencia',
+                    data: data,
+                    backgroundColor: backgroundColors,
+                    borderColor: backgroundColors.map(color => color),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderRecursosChart(recursosPorTipo) {
+        const ctx = document.getElementById('chartRecursosTipo').getContext('2d');
+        const labels = Object.keys(recursosPorTipo);
+        const data = Object.values(recursosPorTipo);
+        
+        window.recursosChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: [
+                        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
+                        '#9966FF', '#FF9F40', '#8AC926', '#1982C4'
+                    ],
+                    borderWidth: 1
+                }]
