@@ -1,10 +1,10 @@
 package co.edu.uniquindio.GestionRiesgos;
 
-import co.edu.uniquindio.Gestion.de.Riesgos.Enums.NivelUrgencia;
-import co.edu.uniquindio.Gestion.de.Riesgos.Enums.TipoRecurso;
-import co.edu.uniquindio.Gestion.de.Riesgos.Enums.TipoRuta;
-import co.edu.uniquindio.Gestion.de.Riesgos.Estructuras.*;
-import co.edu.uniquindio.Gestion.de.Riesgos.Model.*;
+import co.edu.uniquindio.GestionRiesgos.Enums.NivelUrgencia;
+import co.edu.uniquindio.GestionRiesgos.Enums.TipoRecurso;
+import co.edu.uniquindio.GestionRiesgos.Enums.TipoRuta;
+import co.edu.uniquindio.GestionRiesgos.Estructuras.*;
+import co.edu.uniquindio.GestionRiesgos.Model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
