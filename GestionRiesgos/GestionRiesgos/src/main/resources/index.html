@@ -1557,3 +1557,524 @@
     align-items: center;
     gap: 8px;
 }
+
+.route-calculation-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.route-calc-item {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.route-calc-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-top: 8px;
+} 
+    </style>
+</head>
+<body>
+<div class="api-config">
+    <div class="api-status">
+        <div id="apiIndicator" class="api-indicator"></div>
+        <span id="apiStatus">Conectando...</span>
+    </div>
+</div>
+
+<!-- Login Page -->
+<div id="loginPage" class="login-container">
+    <div class="login-box">
+        <div style="margin-bottom: 24px;">
+            <i class="fas fa-shield-alt" style="font-size: 48px; color: #2d3748; margin-bottom: 16px;"></i>
+        </div>
+        <h1>Gestión de<br>Desastres Naturales</h1>
+        <p class="subtitle">Sistema de control y monitoreo <span class="year">2025</span></p>
+        <div id="loginError" class="error-message"></div>
+        <div id="loginSuccess" class="success-message"></div>
+        <form id="loginForm">
+            <div class="input-group">
+                <label for="username"><i class="fas fa-user"></i> Usuario</label>
+                <input type="text" id="username" placeholder="Ingresa tu usuario" required value="admin">
+            </div>
+            <div class="input-group">
+                <label for="password"><i class="fas fa-lock"></i> Contraseña</label>
+                <input type="password" id="password" placeholder="Ingresa tu contraseña" required value="admin123">
+            </div>
+            <button type="submit" class="btn-primary" id="loginBtn"><i class="fas fa-sign-in-alt"></i> Ingresa Aquí</button>
+        </form>
+        <p class="create-account">¿No tienes cuenta? <a id="showRegisterLink">Crea tu cuenta aquí</a></p>
+    </div>
+</div>
+
+<!-- Register Page -->
+<div id="registerPage" class="login-container" style="display: none;">
+    <div class="register-box">
+        <div style="margin-bottom: 24px;">
+            <i class="fas fa-user-plus" style="font-size: 48px; color: #2d3748; margin-bottom: 16px;"></i>
+        </div>
+        <h1>Crear Cuenta</h1>
+        <p class="subtitle">Registro de nuevo usuario</p>
+        <div id="registerError" class="error-message"></div>
+        <div id="registerSuccess" class="success-message"></div>
+        <form id="registerForm">
+            <div class="two-column">
+                <div class="input-group">
+                    <label for="regNombre"><i class="fas fa-user"></i> Nombre *</label>
+                    <input type="text" id="regNombre" placeholder="Tu nombre" required>
+                </div>
+                <div class="input-group">
+                    <label for="regApellido"><i class="fas fa-user"></i> Apellido *</label>
+                    <input type="text" id="regApellido" placeholder="Tu apellido" required>
+                </div>
+            </div>
+            <div class="input-group">
+                <label for="regEmail"><i class="fas fa-envelope"></i> Correo Electrónico *</label>
+                <input type="email" id="regEmail" placeholder="correo@ejemplo.com" required>
+            </div>
+            <div class="input-group">
+                <label for="regUsername"><i class="fas fa-user-circle"></i> Usuario *</label>
+                <input type="text" id="regUsername" placeholder="Nombre de usuario" required>
+            </div>
+            <div class="input-group">
+                <label for="regPassword"><i class="fas fa-lock"></i> Contraseña *</label>
+                <input type="password" id="regPassword" placeholder="Mínimo 6 caracteres" required minlength="6">
+            </div>
+            <div class="input-group">
+                <label for="regRol"><i class="fas fa-user-tag"></i> Rol *</label>
+                <select id="regRol" required>
+                    <option value="OPERADOR_EMERGENCIA">Operador de Emergencia</option>
+                    <option value="ADMINISTRADOR">Administrador</option>
+                </select>
+            </div>
+            <div id="operadorFields">
+                <div class="input-group">
+                    <label for="regEspecialidad"><i class="fas fa-briefcase"></i> Especialidad</label>
+                    <input type="text" id="regEspecialidad" placeholder="ej. Rescate, Médico">
+                </div>
+                <div class="input-group">
+                    <label for="regUbicacion"><i class="fas fa-map-marker-alt"></i> Ubicación</label>
+                    <input type="text" id="regUbicacion" placeholder="Ciudad o zona asignada">
+                </div>
+            </div>
+            <div id="adminFields" style="display: none;">
+                <div class="input-group">
+                    <label for="regDepartamento"><i class="fas fa-building"></i> Departamento</label>
+                    <input type="text" id="regDepartamento" placeholder="ej. Coordinación">
+                </div>
+            </div>
+            <button type="submit" class="btn-primary" id="registerBtn"><i class="fas fa-user-plus"></i> Crear Cuenta</button>
+            <button type="button" class="btn-secondary" id="backToLoginBtn"><i class="fas fa-arrow-left"></i> Volver al Login</button>
+        </form>
+    </div>
+</div>
+
+<!-- Dashboard con Sistema de Pestañas -->
+<div id="dashboard" class="dashboard">
+    <nav class="navbar">
+        <h2><i class="fas fa-shield-alt"></i> Gestión de Desastres Naturales 2025</h2>
+        <div class="navbar-right">
+            <span id="userInfo" style="color: #718096;"><i class="fas fa-user"></i> Cargando...</span>
+            <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Cerrar Sesión</button>
+        </div>
+    </nav>
+
+    <!-- Sistema de Pestañas -->
+    <div class="tabs-container">
+        <div class="tabs-header">
+            <button class="tab-button active" onclick="switchTab('inicio')" data-tab="inicio">
+                <i class="fas fa-home"></i> Inicio
+            </button>
+            <button class="tab-button" onclick="switchTab('admin')" data-tab="admin">
+                <i class="fas fa-tools"></i> Panel de Administración
+            </button>
+            <button class="tab-button" onclick="switchTab('rutas')" data-tab="rutas">
+                <i class="fas fa-route"></i> Panel de Rutas
+            </button>
+            <button class="tab-button" onclick="switchTab('estadisticas')" data-tab="estadisticas">
+                <i class="fas fa-chart-bar"></i> Estadísticas
+            </button>
+            <!-- NUEVA PESTAÑA DEL ÁRBOL -->
+            <button class="tab-button" onclick="switchTab('arbol')" data-tab="arbol">
+                <i class="fas fa-sitemap"></i> Árbol de Distribución
+            </button>
+            <button class="tab-button" onclick="switchTab('mapa')" data-tab="mapa">
+                <i class="fas fa-map-marked-alt"></i> Mapa Interactivo
+            </button>
+        </div>
+
+        <!-- Contenido de las Pestañas -->
+        <div class="tabs-content">
+            
+            <!-- ============================================ -->
+            <!-- PESTAÑA: INICIO -->
+            <!-- ============================================ -->
+            <div id="inicio-tab" class="tab-content active">
+                <div class="container">
+                    <!-- Encabezado de Bienvenida -->
+                    <div class="welcome-section">
+                        <h1><i class="fas fa-tachometer-alt"></i> Panel de Control General</h1>
+                        <p class="subtitle">Visualización en tiempo real del estado del sistema de gestión de desastres</p>
+                    </div>
+
+                    <!-- Tarjetas de Resumen -->
+                    <div class="stats-grid">
+                        <div class="stat-card stat-zonas">
+                            <div class="stat-icon">
+                                <i class="fas fa-map-marker-alt"></i>
+                            </div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="totalZonas">0</div>
+                                <div class="stat-label">Zonas Monitoreadas</div>
+                                <div class="stat-detail" id="zonasCriticas">0 críticas</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card stat-recursos">
+                            <div class="stat-icon">
+                                <i class="fas fa-boxes"></i>
+                            </div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="totalRecursos">0</div>
+                                <div class="stat-label">Recursos Disponibles</div>
+                                <div class="stat-detail" id="recursosDisponibles">0% disponibilidad</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card stat-equipos">
+                            <div class="stat-icon">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="totalEquipos">0</div>
+                                <div class="stat-label">Equipos de Rescate</div>
+                                <div class="stat-detail" id="equiposDisponibles">0 disponibles</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card stat-evacuaciones">
+                            <div class="stat-icon">
+                                <i class="fas fa-ambulance"></i>
+                            </div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="totalEvacuaciones">0</div>
+                                <div class="stat-label">Evacuaciones Activas</div>
+                                <div class="stat-detail" id="evacuacionesProgreso">0% progreso</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sección de Zonas Críticas -->
+                    <div class="section-container">
+                        <div class="section-header">
+                            <h2><i class="fas fa-exclamation-triangle"></i> Zonas Críticas</h2>
+                            <button class="btn-refresh" onclick="loadInicioData()">
+                                <i class="fas fa-sync-alt"></i> Actualizar
+                            </button>
+                        </div>
+                        <div id="zonasDisplay" class="zones-grid">
+                            <div class="loading-state">
+                                <i class="fas fa-spinner fa-spin"></i> Cargando zonas...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sección de Recursos Disponibles -->
+                    <div class="section-container">
+                        <div class="section-header">
+                            <h2><i class="fas fa-warehouse"></i> Recursos Disponibles por Tipo</h2>
+                        </div>
+                        <div id="recursosDisplay" class="resources-grid">
+                            <div class="loading-state">
+                                <i class="fas fa-spinner fa-spin"></i> Cargando recursos...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sección de Equipos de Rescate -->
+                    <div class="section-container">
+                        <div class="section-header">
+                            <h2><i class="fas fa-user-shield"></i> Estado de Equipos de Rescate</h2>
+                        </div>
+                        <div id="equiposDisplay" class="teams-list">
+                            <div class="loading-state">
+                                <i class="fas fa-spinner fa-spin"></i> Cargando equipos...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sección de Cola de Prioridad (Evacuaciones) -->
+                    <div class="section-container">
+                        <div class="section-header">
+                            <h2><i class="fas fa-list-ol"></i> Cola de Prioridad - Evacuaciones</h2>
+                            <div>
+                                <button class="btn-refresh" onclick="priorizarCola()" title="Priorizar cola">
+                                    <i class="fas fa-sort-amount-down"></i> Priorizar
+                                </button>
+                                <button class="btn-refresh" onclick="procesarSiguienteEvacuacion()" title="Procesar siguiente evacuación">
+                                    <i class="fas fa-play"></i> Procesar Siguiente
+                                </button>
+                                <button class="btn-refresh" onclick="loadColaPrioridad()">
+                                    <i class="fas fa-sync-alt"></i> Actualizar
+                                </button>
+                            </div>
+                        </div>
+                        <div id="colaPrioridadDisplay" class="cola-prioridad-container">
+                            <div class="loading-state">
+                                <i class="fas fa-spinner fa-spin"></i> Cargando cola de evacuaciones...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sección de Mapa de Recursos -->
+                    <div class="section-container">
+                        <div class="section-header">
+                            <h2><i class="fas fa-map-marked-alt"></i> Mapa de Recursos por Ruta</h2>
+                            <button class="btn-refresh" onclick="loadMapaRecursos()">
+                                <i class="fas fa-sync-alt"></i> Actualizar
+                            </button>
+                        </div>
+                        <div id="mapaRecursosDisplay" class="mapa-recursos-container">
+                            <div class="loading-state">
+                                <i class="fas fa-spinner fa-spin"></i> Cargando mapa de recursos...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Acciones Rápidas -->
+                    <div class="quick-actions">
+                        <h3><i class="fas fa-bolt"></i> Acciones Rápidas</h3>
+                        <div class="actions-grid">
+                            <button class="action-btn" onclick="switchTab('admin')">
+                                <i class="fas fa-plus-circle"></i>
+                                <span>Agregar Recurso</span>
+                            </button>
+                            <button class="action-btn" onclick="switchTab('rutas')">
+                                <i class="fas fa-route"></i>
+                                <span>Planificar Evacuación</span>
+                            </button>
+                            <button class="action-btn" onclick="switchTab('mapa')">
+                                <i class="fas fa-map"></i>
+                                <span>Ver Mapa Completo</span>
+                            </button>
+                            <button class="action-btn" onclick="switchTab('estadisticas')">
+                                <i class="fas fa-chart-line"></i>
+                                <span>Ver Estadísticas</span>
+                            </button>
+                            <button class="action-btn" onclick="cargarDatosDesdeJSON()">
+                                <i class="fas fa-file-upload"></i>
+                                <span>Cargar Datos JSON</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- PESTAÑA: PANEL DE ADMINISTRACIÓN (Placeholder) -->
+            <!-- ============================================ -->
+<div id="admin-tab" class="tab-content">
+    <div class="container">
+        <div class="welcome-section">
+            <h1><i class="fas fa-tools"></i> Panel de Administración</h1>
+            <p class="subtitle">Gestión completa del sistema de desastres</p>
+        </div>
+
+        <!-- Sistema de pestañas interno -->
+        <div class="tabs-header" style="margin-bottom: 20px;">
+            <button class="tab-button active" onclick="switchAdminTab('gestion-zonas')">Zonas</button>
+            <button class="tab-button" onclick="switchAdminTab('gestion-recursos')">Recursos</button>
+            <button class="tab-button" onclick="switchAdminTab('gestion-equipos')">Equipos</button>
+            <button class="tab-button" onclick="switchAdminTab('gestion-usuarios')">Usuarios</button>
+            <button class="tab-button" onclick="switchAdminTab('asignacion-recursos')">Asignación</button>
+        </div>
+
+        <!-- Gestión de Zonas -->
+        <div id="gestion-zonas" class="admin-tab-content active">
+            <div class="section-container">
+                <div class="section-header">
+                    <h2><i class="fas fa-map-marker-alt"></i> Crear Nueva Zona</h2>
+                </div>
+                <form id="createZoneFormAdmin" class="two-column">
+                    <div class="input-group">
+                        <label>ID de la Zona *</label>
+                        <input type="text" id="adminZoneId" required placeholder="ej. Z004">
+                    </div>
+                    <div class="input-group">
+        <label>Radio de Cobertura (metros)</label>
+        <input type="number" id="adminZoneRadius" value="500" min="100" max="5000">
+    </div>
+                    <div class="input-group">
+                        <label>Nombre *</label>
+                        <input type="text" id="adminZoneName" required placeholder="ej. Zona Centro">
+                    </div>
+                    <div class="input-group">
+                        <label>Descripción</label>
+                        <textarea id="adminZoneDesc" placeholder="Descripción de la zona" rows="3"></textarea>
+                    </div>
+                    <div class="input-group">
+                        <label>Coordenada X (Latitud) *</label>
+                        <input type="number" step="any" id="adminZoneX" required placeholder="4.5389">
+                    </div>
+                    <div class="input-group">
+                        <label>Coordenada Y (Longitud) *</label>
+                        <input type="number" step="any" id="adminZoneY" required placeholder="-75.6678">
+                    </div>
+                    <div class="input-group">
+                        <label>Población Afectada</label>
+                        <input type="number" id="adminZonePop" value="0" min="0">
+                    </div>
+                    <div class="input-group">
+                        <label>Nivel de Urgencia *</label>
+                        <select id="adminZoneUrgency" required>
+                            <option value="BAJA">Baja</option>
+                            <option value="MEDIA">Media</option>
+                            <option value="ALTA">Alta</option>
+                            <option value="CRITICA">Crítica</option>
+                        </select>
+                    </div>
+                    <div class="input-group" style="grid-column: 1 / -1;">
+                        <button type="submit" class="btn-primary">
+                            <i class="fas fa-plus-circle"></i> Crear Zona
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="section-container">
+                <div class="section-header">
+                    <h2><i class="fas fa-list"></i> Zonas Existentes</h2>
+                    <button class="btn-refresh" onclick="loadAdminData()">
+                        <i class="fas fa-sync-alt"></i> Actualizar
+                    </button>
+                </div>
+                <div id="zonasList" class="zones-grid">
+                    <div class="loading-state">
+                        <i class="fas fa-spinner fa-spin"></i> Cargando zonas...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gestión de Recursos -->
+        <div id="gestion-recursos" class="admin-tab-content">
+    <div class="section-container">
+        <div class="section-header">
+            <h2><i class="fas fa-boxes"></i> Crear Nuevo Recurso</h2>
+        </div>
+        <form id="createResourceForm" class="two-column">
+            <div class="input-group">
+                <label>ID del Recurso *</label>
+                <input type="text" id="resourceId" required placeholder="ej. R004">
+            </div>
+            <div class="input-group">
+                <label>Nombre *</label>
+                <input type="text" id="resourceName" required placeholder="ej. Agua Potable">
+            </div>
+            <div class="input-group">
+                <label>Tipo *</label>
+                <select id="resourceType" required>
+                    <option value="ALIMENTOS">Alimentos</option>
+                    <option value="MEDICINAS">Medicinas</option>
+                    <option value="EQUIPOS">Equipos</option>
+                    <option value="AGUA">Agua</option>
+                    <option value="ROPA">Ropa</option>
+                    <option value="REFUGIO">Refugio</option>
+                    <option value="ENERGIA">Energía</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Cantidad *</label>
+                <input type="number" id="resourceQuantity" required min="1" value="1">
+            </div>
+            <div class="input-group">
+                <label>Unidad de Medida *</label>
+                <input type="text" id="resourceUnit" required placeholder="litros, kg, unidades...">
+            </div>
+            <div class="input-group">
+                <label><i class="fas fa-map-marker-alt"></i> Asignar a Zona</label>
+                <select id="resourceLocation">
+                    <option value="">📦 Almacén Central (Sin asignar)</option>
+                </select>
+            </div>
+            <div class="input-group" style="grid-column: 1 / -1;">
+                <button type="submit" class="btn-primary">
+                    <i class="fas fa-plus-circle"></i> Crear Recurso
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="section-container">
+        <div class="section-header">
+            <h2><i class="fas fa-warehouse"></i> Recursos Existentes</h2>
+            <button class="btn-refresh" onclick="loadAdminData()">
+                <i class="fas fa-sync-alt"></i> Actualizar
+            </button>
+        </div>
+        <div id="recursosList" class="resources-grid">
+            <div class="loading-state">
+                <i class="fas fa-spinner fa-spin"></i> Cargando recursos...
+            </div>
+        </div>
+    </div>
+</div>
+
+        <!-- Gestión de Equipos -->
+        <div id="gestion-equipos" class="admin-tab-content">
+            <div class="section-container">
+                <div class="section-header">
+                    <h2><i class="fas fa-users"></i> Crear Nuevo Equipo</h2>
+                </div>
+                <form id="createTeamForm" class="two-column">
+                    <div class="input-group">
+                        <label>ID del Equipo *</label>
+                        <input type="text" id="teamId" required placeholder="ej. EQ003">
+                    </div>
+                    <div class="input-group">
+                        <label>Nombre *</label>
+                        <input type="text" id="teamName" required placeholder="ej. Equipo Médico Beta">
+                    </div>
+                    <div class="input-group">
+                        <label>Tipo *</label>
+                        <select id="teamType" required>
+                            <option value="MEDICO">Equipo Médico</option>
+                            <option value="BOMBEROS">Bomberos</option>
+                            <option value="BUSQUEDA_RESCATE">Búsqueda y Rescate</option>
+                            <option value="EVACUACION">Evacuación</option>
+                            <option value="COMUNICACIONES">Comunicaciones</option>
+                            <option value="LOGISTICA">Logística</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Ubicación Actual *</label>
+                        <input type="text" id="teamLocation" required placeholder="Z001">
+                    </div>
+                    <div class="input-group">
+                        <label>Capacidad Máxima *</label>
+                        <input type="number" id="teamCapacity" required min="1" value="10">
+                    </div>
+                    <div class="input-group">
+                        <label>Líder del Equipo *</label>
+                        <input type="text" id="teamLeader" required placeholder="Nombre del líder">
+                    </div>
+                    <div class="input-group">
+                        <label>Personal Asignado</label>
+                        <input type="number" id="teamPersonnel" min="0" value="0">
+                    </div>
+                    <div class="input-group">
+                        <label>Especialidad</label>
+                        <input type="text" id="teamSpecialty" placeholder="Especialidad del equipo">
+                    </div>
+                    <div class="input-group" style="grid-column: 1 / -1;">
+                        <button type="submit" class="btn-primary">
+                            <i class="fas fa-plus-circle"></i> Crear Equipo
+                        </button>
+                    </div>
+                </form>
+            </div>
