@@ -5717,3 +5717,522 @@ async function handleAdminResourceSubmit(e) {
         if (!resp.ok || result.success === false) {
             console.error('Error al crear recurso:', result);
             showNotification(result.message || 'No se pudo crear el recurso', 'error');
+                        return;
+        }
+
+        showNotification('Recurso creado correctamente', 'success');
+        e.target.reset();
+        await loadAdminData();
+    } catch (err) {
+        console.error('Error al crear recurso:', err);
+        showNotification('Error de conexión al crear recurso', 'error');
+    }
+}
+function renderRecursosAdminTable() {
+    const cont = document.getElementById('recursosList');
+    if (!cont) return;
+
+    if (!Array.isArray(recursosData) || recursosData.length === 0) {
+        cont.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-box-open"></i>
+                <h3>No hay recursos registrados</h3>
+            </div>`;
+        return;
+    }
+
+    cont.innerHTML = '';
+
+    recursosData.forEach(r => {
+        const tipo = (r.tipoRecurso || r.tipo || 'OTROS').toUpperCase();
+        const cant = r.cantidadTotal ?? r.cantidad ?? 0;
+        const zona = r.zonaId || r.ubicacion || '-';
+
+        const card = document.createElement('div');
+        card.className = 'resource-card';
+        card.innerHTML = `
+            <div class="resource-icon">
+                <i class="fas fa-box"></i>
+            </div>
+            <div class="resource-type">${tipo}</div>
+            <div class="resource-amount">${cant}</div>
+            <div style="font-size: 0.85rem; margin-bottom: 6px;">
+                Zona: ${zona}
+            </div>
+            <div class="resource-actions">
+                <button class="btn-danger" onclick="deleteRecursoAdmin('${r.id}')">
+                    <i class="fas fa-trash-alt"></i> Eliminar
+                </button>
+            </div>
+        `;
+        cont.appendChild(card);
+    });
+}
+
+async function deleteRecursoAdmin(id) {
+    if (!confirm('¿Seguro que deseas eliminar este recurso?')) return;
+
+    try {
+        const resp   = await fetch(`${API_URL}/recursos/${encodeURIComponent(id)}`, {
+            method: 'DELETE'
+        });
+        const result = await resp.json().catch(() => ({}));
+
+        if (!resp.ok || result.success === false) {
+            console.error('Error eliminando recurso:', result);
+            showNotification(result.message || 'No se pudo eliminar el recurso', 'error');
+            return;
+        }
+
+        showNotification('Recurso eliminado correctamente', 'success');
+        recursosData = recursosData.filter(r => String(r.id) !== String(id));
+        renderRecursosAdminTable();
+    } catch (err) {
+        console.error('Error eliminando recurso:', err);
+        showNotification('Error de conexión al eliminar el recurso', 'error');
+    }
+}
+async function handleAdminTeamSubmit(e) {
+    e.preventDefault();
+
+    const payload = {
+        id: document.getElementById('teamId').value.trim(),
+        nombre: document.getElementById('teamName').value.trim(),
+        tipo: document.getElementById('teamType').value,
+        ubicacion: document.getElementById('teamLocation').value.trim(),
+        capacidadMaxima: parseInt(document.getElementById('teamCapacity').value || '0', 10),
+        lider: document.getElementById('teamLeader').value.trim(),
+        personalAsignado: parseInt(document.getElementById('teamPersonnel').value || '0', 10),
+        especialidad: document.getElementById('teamSpecialty').value.trim()
+    };
+
+    if (!payload.id || !payload.nombre) {
+        showNotification('ID y Nombre del equipo son obligatorios', 'error');
+        return;
+    }
+
+    try {
+        const resp   = await fetch(`${API_URL}/equipos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await resp.json().catch(() => ({}));
+
+        if (!resp.ok || result.success === false) {
+            console.error('Error al crear equipo:', result);
+            showNotification(result.message || 'No se pudo crear el equipo', 'error');
+            return;
+        }
+
+        showNotification('Equipo creado correctamente', 'success');
+        e.target.reset();
+        await loadAdminData();
+    } catch (err) {
+        console.error('Error al crear equipo:', err);
+        showNotification('Error de conexión al crear equipo', 'error');
+    }
+}
+function renderEquiposAdminTable() {
+    const cont = document.getElementById('equiposList');
+    if (!cont) return;
+
+    if (!Array.isArray(equiposData) || equiposData.length === 0) {
+        cont.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-users"></i>
+                <h3>No hay equipos registrados</h3>
+            </div>`;
+        return;
+    }
+
+    cont.innerHTML = '';
+
+    equiposData.forEach(eq => {
+        const nombre  = eq.nombre || eq.nombreEquipo || ('Equipo #' + (eq.id ?? ''));
+        const tipo    = eq.tipo || eq.tipoEquipo || 'Sin tipo';
+        const estado  = normalizarEstado(eq.estado || 'DESCONOCIDO');
+        const ubic    = eq.ubicacion || eq.zonaId || '-';
+
+        let statusClass = 'status-transito';
+        if (estado === 'DISPONIBLE') statusClass = 'status-disponible';
+        else if (['EN_OPERACION', 'OPERACION', 'ACTIVO'].includes(estado)) statusClass = 'status-operacion';
+
+        const card = document.createElement('div');
+        card.className = 'team-card';
+        card.innerHTML = `
+            <div class="team-info">
+                <div class="team-avatar">
+                    <i class="fas fa-user-shield"></i>
+                </div>
+                <div class="team-details">
+                    <div class="team-name">${nombre}</div>
+                    <div class="team-type">${tipo}</div>
+                    <div class="team-location"><i class="fas fa-map-marker-alt"></i> ${ubic}</div>
+                </div>
+            </div>
+            <div class="team-status">
+                <span class="status-badge ${statusClass}">${estado}</span>
+                <button class="btn-danger" onclick="deleteEquipoAdmin('${eq.id}')">
+                    <i class="fas fa-trash-alt"></i> Eliminar
+                </button>
+            </div>
+        `;
+        cont.appendChild(card);
+    });
+}
+
+async function deleteEquipoAdmin(id) {
+    if (!confirm('¿Seguro que deseas eliminar este equipo?')) return;
+
+    try {
+        const resp   = await fetch(`${API_URL}/equipos/${encodeURIComponent(id)}`, {
+            method: 'DELETE'
+        });
+        const result = await resp.json().catch(() => ({}));
+
+        if (!resp.ok || result.success === false) {
+            console.error('Error eliminando equipo:', result);
+            showNotification(result.message || 'No se pudo eliminar el equipo', 'error');
+            return;
+        }
+
+        showNotification('Equipo eliminado correctamente', 'success');
+        equiposData = equiposData.filter(eq => String(eq.id) !== String(id));
+        renderEquiposAdminTable();
+    } catch (err) {
+        console.error('Error eliminando equipo:', err);
+        showNotification('Error de conexión al eliminar el equipo', 'error');
+    }
+}
+function renderUsuariosAdminTable() {
+    const cont = document.getElementById('usersList');
+    if (!cont) return;
+
+    if (!Array.isArray(usuariosData) || usuariosData.length === 0) {
+        cont.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-user-cog"></i>
+                <h3>No hay usuarios registrados</h3>
+            </div>`;
+        return;
+    }
+
+    const html = `
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Usuario</th>
+                    <th>Nombre</th>
+                    <th>Correo</th>
+                    <th>Rol</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${usuariosData.map(u => `
+                    <tr>
+                        <td>${u.username || '-'}</td>
+                        <td>${(u.nombre || '') + ' ' + (u.apellido || '')}</td>
+                        <td>${u.email || '-'}</td>
+                        <td>${u.rol || '-'}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    cont.innerHTML = html;
+}
+    async function renderAsignacionesAdminTable() {
+        const selZona = document.getElementById('assignZoneSelect');
+        const selRec  = document.getElementById('assignResourceSelect');
+        const selRecLocation = document.getElementById('resourceLocation');
+        
+        if (!selZona || !selRec) return;
+
+        // Llenar select de zonas para asignación
+        selZona.innerHTML = '<option value="">Selecciona una zona</option>';
+        zonasData.forEach(z => {
+            const opt = document.createElement('option');
+            opt.value = z.id;
+            opt.textContent = z.nombre || z.id;
+            selZona.appendChild(opt);
+        });
+
+        // Llenar select de zonas para crear recurso
+        if (selRecLocation) {
+            selRecLocation.innerHTML = '<option value="">📦 Almacén Central (Sin asignar)</option>';
+            zonasData.forEach(z => {
+                const opt = document.createElement('option');
+                opt.value = z.id;
+                const urgencia = z.nivelUrgencia || z.urgencia || 'MEDIA';
+                const icono = urgencia === 'CRITICA' ? '🔴' : urgencia === 'ALTA' ? '🟠' : urgencia === 'MEDIA' ? '🟡' : '🟢';
+                opt.textContent = `${icono} ${z.nombre || z.id}`;
+                selRecLocation.appendChild(opt);
+            });
+        }
+
+        // Llenar select de recursos
+        selRec.innerHTML = '<option value="">Selecciona un recurso</option>';
+        recursosData.forEach(r => {
+            const opt = document.createElement('option');
+            opt.value = r.id;
+            const disponible = r.cantidadDisponible || 0;
+            opt.textContent = `${r.nombre || r.id} (${disponible} ${r.unidadMedida || 'uds'} disponibles)`;
+            selRec.appendChild(opt);
+        });
+
+        // Cargar asignaciones existentes del servidor
+        try {
+            const resp = await fetch(`${API_URL}/asignaciones`);
+            if (resp.ok) {
+                asignacionesData = await resp.json();
+            } else {
+                asignacionesData = [];
+            }
+        } catch (err) {
+            console.error('Error cargando asignaciones:', err);
+            asignacionesData = [];
+        }
+
+        loadZoneResources();
+    }
+
+function loadZoneResources() {
+    const zonaId = document.getElementById('assignZoneSelect')?.value;
+    const cont   = document.getElementById('assignedResourcesList');
+    const infoBox = document.getElementById('zoneResourcesInfo');
+
+    if (!cont || !infoBox) return;
+
+    if (!zonaId) {
+        infoBox.style.display = 'none';
+        cont.innerHTML = '';
+        return;
+    }
+
+    infoBox.style.display = 'block';
+
+    const asignadas = Array.isArray(asignacionesData)
+        ? asignacionesData.filter(a => String(a.zonaId) === String(zonaId))
+        : [];
+
+    if (asignadas.length === 0) {
+        cont.innerHTML = `
+            <p>No hay recursos asignados a esta zona.</p>
+        `;
+        return;
+    }
+
+    cont.innerHTML = `
+        <ul class="assigned-list">
+            ${asignadas.map(a => {
+                const rec = recursosData.find(r => String(r.id) === String(a.recursoId));
+                const nombreRec = rec ? (rec.nombre || rec.id) : a.recursoId;
+                return `<li>${nombreRec} — Cantidad: ${a.cantidad || 0}</li>`;
+            }).join('')}
+        </ul>
+    `;
+}
+
+async function assignResourceToZone() {
+    const zonaId     = document.getElementById('assignZoneSelect')?.value;
+    const recursoId  = document.getElementById('assignResourceSelect')?.value;
+    const cantidad   = parseInt(document.getElementById('assignQuantity')?.value || '1', 10);
+
+    if (!zonaId || !recursoId || !cantidad) {
+        showNotification('Selecciona zona, recurso y una cantidad válida', 'error');
+        return;
+    }
+
+    const payload = {
+        zonaId,
+        recursoId,
+        cantidad
+    };
+
+    try {
+        const resp   = await fetch(`${API_URL}/asignaciones`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await resp.json().catch(() => ({}));
+
+        if (!resp.ok || result.success === false) {
+            console.error('Error asignando recurso:', result);
+            showNotification(result.message || 'No se pudo asignar el recurso', 'error');
+            return;
+        }
+
+        showNotification('Recurso asignado correctamente', 'success');
+        await loadAdminData();
+        
+        // Actualizar estadísticas y árbol
+        if (currentTab === 'estadisticas') {
+            await loadEstadisticasTab();
+        }
+        await updateTreeFromResources();
+    } catch (err) {
+        console.error('Error asignando recurso:', err);
+        showNotification('Error de conexión al asignar el recurso', 'error');
+    }
+}
+
+    //=========================================================
+    // FUNCIONES DE RUTAS
+    //=========================================================
+    function switchRoutesTab(tabName) {
+        document.querySelectorAll('.routes-tab-content').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        document.getElementById(tabName).classList.add('active');
+        
+        const buttons = document.querySelectorAll('#rutas-tab .tabs-header .tab-button');
+        buttons.forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.textContent.toLowerCase().includes(tabName.split('-').slice(-1)[0])) {
+                btn.classList.add('active');
+            }
+        });
+    }
+
+   // Variables globales para almacenar zonas cargadas
+let zonasParaRutas = [];
+
+/**
+ * Carga las zonas desde el API y las almacena globalmente
+ */
+async function loadZonasForRutas() {
+    const selectOrigen  = document.getElementById('routeOrigin');
+    const selectDestino = document.getElementById('routeDestination');
+    const evacOrigen = document.getElementById('evacOrigin');
+    const evacDestino = document.getElementById('evacDestination');
+    const optimalOrigin = document.getElementById('optimalOrigin');
+    const optimalDestination = document.getElementById('optimalDestination');
+
+    console.log('🔄 Cargando zonas para rutas...');
+
+    try {
+        const resp = await fetch(`${API_URL}/zonas`, { method: 'GET' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+        zonasParaRutas = await resp.json();
+        
+        console.log('✅ Zonas cargadas:', zonasParaRutas.length);
+        console.log('📦 Zonas disponibles:', zonasParaRutas.map(z => ({
+            id: z.id,
+            nombre: z.nombre,
+            coords: `(${z.coordenadaX}, ${z.coordenadaY})`
+        })));
+
+        // Verificar que tenemos las coordenadas
+        const zonasConCoordenadas = zonasParaRutas.filter(z => 
+            z.coordenadaX !== undefined && z.coordenadaY !== undefined
+        );
+        
+        if (zonasConCoordenadas.length !== zonasParaRutas.length) {
+            console.warn('⚠️ Algunas zonas no tienen coordenadas completas');
+        }
+
+        // Llenar todos los selects
+        if (selectOrigen && selectDestino) {
+            selectOrigen.innerHTML  = '<option value="">Selecciona zona origen</option>';
+            selectDestino.innerHTML = '<option value="">Selecciona zona destino</option>';
+            
+            zonasParaRutas.forEach(z => {
+                const opt1 = document.createElement('option');
+                opt1.value = z.id;
+                opt1.textContent = `${z.nombre || z.id} (${z.coordenadaX?.toFixed(4)}, ${z.coordenadaY?.toFixed(4)})`;
+                selectOrigen.appendChild(opt1);
+
+                const opt2 = document.createElement('option');
+                opt2.value = z.id;
+                opt2.textContent = `${z.nombre || z.id} (${z.coordenadaX?.toFixed(4)}, ${z.coordenadaY?.toFixed(4)})`;
+                selectDestino.appendChild(opt2);
+            });
+        }
+        
+        // Llenar selects de evacuación
+        if (evacOrigen && evacDestino) {
+            evacOrigen.innerHTML = '<option value="">Selecciona zona origen</option>';
+            evacDestino.innerHTML = '<option value="">Selecciona zona destino</option>';
+            
+            zonasParaRutas.forEach(z => {
+                const opt3 = document.createElement('option');
+                opt3.value = z.id;
+                opt3.textContent = z.nombre || z.id;
+                evacOrigen.appendChild(opt3);
+
+                const opt4 = document.createElement('option');
+                opt4.value = z.id;
+                opt4.textContent = z.nombre || z.id;
+                evacDestino.appendChild(opt4);
+            });
+        }
+        
+        // Llenar selects de rutas óptimas
+        if (optimalOrigin && optimalDestination) {
+            optimalOrigin.innerHTML = '<option value="">Selecciona origen</option>';
+            optimalDestination.innerHTML = '<option value="">Selecciona destino</option>';
+            
+            zonasParaRutas.forEach(z => {
+                const opt5 = document.createElement('option');
+                opt5.value = z.id;
+                opt5.textContent = z.nombre || z.id;
+                optimalOrigin.appendChild(opt5);
+
+                const opt6 = document.createElement('option');
+                opt6.value = z.id;
+                opt6.textContent = z.nombre || z.id;
+                optimalDestination.appendChild(opt6);
+            });
+        }
+        
+        console.log('✅ Todos los selects poblados correctamente');
+        
+    } catch (err) {
+        console.error('❌ Error cargando zonas para rutas:', err);
+        showNotification('No se pudieron cargar las zonas para el panel de rutas', 'error');
+    }
+}
+
+/**
+ * Calcula la distancia euclidiana entre dos puntos geográficos
+ * Usando la fórmula de Haversine para mayor precisión
+ */
+function calcularDistanciaGeografica(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Radio de la Tierra en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distancia = R * c;
+    
+    return distancia; // en kilómetros
+}
+
+/**
+ * Calcula el tiempo estimado según el tipo de ruta
+ */
+function calcularTiempoEstimado(distanciaKm, tipoRuta) {
+    const velocidades = {
+        'TERRESTRE': 60,  // km/h (velocidad promedio en carretera)
+        'AEREA': 200,     // km/h (velocidad de helicóptero/avión pequeño)
+        'MARITIMA': 40    // km/h (velocidad de embarcación)
+    };
+    
+    const velocidad = velocidades[tipoRuta] || 60;
+    return distanciaKm / velocidad; // tiempo en horas
+}
+
+/**
+ * Calcula y muestra la vista previa de la ruta
+ */
+function calculateRoutePreview() {
+    const origenId = document.getElementById('routeOrigin')?.value;
+    const destinoId = document.getElementById('routeDestination')?.value;
+    const tipoRuta = document.getElementById('routeType')?.value || 'TERRESTRE';
