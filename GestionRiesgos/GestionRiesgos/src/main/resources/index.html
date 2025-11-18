@@ -7277,3 +7277,524 @@ async function loadEvacuaciones() {
                     ],
                     borderWidth: 1
                 }]
+                    },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'right'
+                    }
+                }
+            }
+        });
+    }
+
+    function renderEquiposChart(equiposPorEstado) {
+        const ctx = document.getElementById('chartEquiposEstado').getContext('2d');
+        if (!ctx) return;
+        const labels = Object.keys(equiposPorEstado);
+        const data = Object.values(equiposPorEstado);
+        
+        window.equiposChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: [
+                        '#4CAF50', '#2196F3', '#FF9800', 
+                        '#9C27B0', '#607D8B', '#F44336'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'right'
+                    }
+                }
+            }
+        });
+    }
+
+    function renderEvacuacionesChart(stats) {
+        const ctx = document.getElementById('chartEvacuacionesProgreso').getContext('2d');
+        if (!ctx) return;
+        const completadas = stats.porcentajeEvacuacionesCompletadas || 0;
+        const pendientes = 100 - completadas;
+
+        window.evacuacionesChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Completadas', 'Pendientes'],
+                datasets: [{
+                    data: [completadas, pendientes],
+                    backgroundColor: ['#4CAF50', '#FFC107'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'right'
+                    }
+                }
+            }
+        });
+    }
+
+    function showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'exclamation-triangle' : 'info'}-circle"></i>
+            ${message}
+        `;
+        
+        if (!document.querySelector('#notification-styles')) {
+            const styles = document.createElement('style');
+            styles.id = 'notification-styles';
+            styles.textContent = `
+                .notification {
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    padding: 15px 20px;
+                    border-radius: 6px;
+                    color: white;
+                    z-index: 10000;
+                    max-width: 300px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                    animation: slideIn 0.3s ease;
+                }
+                .notification.success { background: #4CAF50; }
+                .notification.error { background: #F44336; }
+                .notification.info { background: #2196F3; }
+                @keyframes slideIn {
+                    from { transform: translateX(100%); opacity: 0; }
+                    to { transform: translateX(0); opacity: 1; }
+                }
+            `;
+            document.head.appendChild(styles);
+        }
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 5000);
+    }
+
+    function logout() {
+        if (confirm('¿Estás seguro que deseas cerrar sesión?')) {
+            currentUser = null;
+            // Limpiar localStorage al cerrar sesión
+            localStorage.removeItem('currentUser');
+            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById('loginPage').style.display = 'flex';
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        }
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+    const zoneFormAdmin    = document.getElementById('createZoneFormAdmin');
+    const resourceForm     = document.getElementById('createResourceForm');
+    const teamForm         = document.getElementById('createTeamForm');
+
+    if (zoneFormAdmin) {
+        zoneFormAdmin.addEventListener('submit', handleAdminZoneSubmit);
+    }
+    if (resourceForm) {
+        resourceForm.addEventListener('submit', handleAdminResourceSubmit);
+    }
+    if (teamForm) {
+        teamForm.addEventListener('submit', handleAdminTeamSubmit);
+    }
+    // ===== FORMULARIOS RUTAS =====
+    const routeForm = document.getElementById('createRouteForm');
+    const evacForm = document.getElementById('planEvacuationForm');
+
+    if (routeForm) {
+        routeForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const routeData = {
+                id: document.getElementById('routeId').value,
+                origen: document.getElementById('routeOrigin').value,
+                destino: document.getElementById('routeDestination').value,
+                distancia: parseFloat(document.getElementById('routeDistance').value),
+                tiempoEstimado: parseFloat(document.getElementById('routeTime').value),
+                tipo: document.getElementById('routeType').value,
+                capacidadMaxima: parseInt(document.getElementById('routeCapacity').value),
+                nivelRiesgo: parseFloat(document.getElementById('routeRisk').value)
+            };
+
+        // Validación básica
+        if (!routeData.id || !routeData.origen || !routeData.destino) {
+            showNotification('Completa todos los campos obligatorios', 'error');
+            return;
+        }
+
+        try {
+            const resp = await fetch(`${API_URL}/rutas`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(routeData)
+            });
+
+            const result = await resp.json().catch(() => ({}));
+
+            if (resp.ok && (result.success === undefined || result.success === true)) {
+                showNotification('Ruta creada exitosamente', 'success');
+                routeForm.reset();
+                loadAllRoutes();
+            } else {
+                console.error('Error al crear ruta:', result);
+                showNotification(result.message || 'No se pudo crear la ruta', 'error');
+            }
+        } catch (error) {
+            console.error('Error de conexión al crear ruta:', error);
+            showNotification('Error de conexión con la API', 'error');
+        }
+    });
+    }
+
+    if (evacForm) {
+        evacForm.addEventListener('submit', planificarEvacuacion);
+    }
+});
+// FUNCIONES HANDLER PARA ADMIN PANEL
+
+async function handleAdminZoneSubmit(e) {
+    e.preventDefault();
+
+    const payload = {
+        id: document.getElementById('adminZoneId').value.trim(),
+        nombre: document.getElementById('adminZoneName').value.trim(),
+        descripcion: document.getElementById('adminZoneDesc').value.trim(),
+        coordenadaX: parseFloat(document.getElementById('adminZoneX').value),
+        coordenadaY: parseFloat(document.getElementById('adminZoneY').value),
+        poblacionAfectada: parseInt(document.getElementById('adminZonePop').value || '0', 10),
+        nivelUrgencia: document.getElementById('adminZoneUrgency').value,
+        radio: parseInt(document.getElementById('adminZoneRadius')?.value || '500', 10)
+    };
+
+    if (!payload.id || !payload.nombre) {
+        showNotification('ID y Nombre de la zona son obligatorios', 'error');
+        return;
+    }
+
+    try {
+        const resp = await fetch(`${API_URL}/zonas`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await resp.json().catch(() => ({}));
+
+        if (!resp.ok || result.success === false) {
+            console.error('Error creando zona:', result);
+            showNotification(result.message || 'No se pudo crear la zona', 'error');
+            return;
+        }
+
+        showNotification('Zona creada correctamente', 'success');
+        e.target.reset();
+        await loadAdminData();
+        
+        // Actualizar estadísticas y árbol si están activas
+        if (currentTab === 'estadisticas') {
+            await loadEstadisticasTab();
+        }
+        await updateTreeFromResources();
+    } catch (err) {
+        console.error('Error al crear zona:', err);
+        showNotification('Error de conexión al crear la zona', 'error');
+    }
+}
+
+    async function handleAdminResourceSubmit(e) {
+    e.preventDefault();
+
+    const zonaSeleccionada = document.getElementById('resourceLocation').value.trim();
+    
+    const payload = {
+        id: document.getElementById('resourceId').value.trim(),
+        nombre: document.getElementById('resourceName').value.trim(),
+        tipo: document.getElementById('resourceType').value,
+        cantidad: parseInt(document.getElementById('resourceQuantity').value || '0', 10),
+        unidadMedida: document.getElementById('resourceUnit').value.trim(),
+        ubicacionId: zonaSeleccionada || null,
+        zonaId: zonaSeleccionada || null, // Algunos backends usan este nombre
+        cantidadDisponible: parseInt(document.getElementById('resourceQuantity').value || '0', 10)
+    };
+
+    if (!payload.id || !payload.nombre) {
+        showNotification('ID y Nombre del recurso son obligatorios', 'error');
+        return;
+    }
+
+    console.log('📦 Creando recurso:', payload);
+
+    try {
+        const resp = await fetch(`${API_URL}/recursos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await resp.json().catch(() => ({}));
+
+        if (!resp.ok || result.success === false) {
+            console.error('Error al crear recurso:', result);
+            showNotification(result.message || 'No se pudo crear el recurso', 'error');
+            return;
+        }
+
+        showNotification('Recurso creado correctamente', 'success');
+        e.target.reset();
+        await loadAdminData();
+        
+        // Actualizar estadísticas y árbol
+        if (currentTab === 'estadisticas') {
+            await loadEstadisticasTab();
+        }
+        
+        console.log('🌳 Actualizando árbol después de crear recurso...');
+        await updateTreeFromResources();
+        
+    } catch (err) {
+        console.error('Error al crear recurso:', err);
+        showNotification('Error de conexión al crear recurso', 'error');
+    }
+}
+
+async function handleAdminTeamSubmit(e) {
+    e.preventDefault();
+
+    const payload = {
+        id: document.getElementById('teamId').value.trim(),
+        nombre: document.getElementById('teamName').value.trim(),
+        tipo: document.getElementById('teamType').value,
+        ubicacionActual: document.getElementById('teamLocation').value.trim(),
+        capacidadMaxima: parseInt(document.getElementById('teamCapacity').value || '0', 10),
+        liderEquipo: document.getElementById('teamLeader').value.trim(),
+        personalAsignado: parseInt(document.getElementById('teamPersonnel').value || '0', 10),
+        experienciaAnos: parseInt(document.getElementById('teamExperience')?.value || '0', 10)
+    };
+
+    if (!payload.id || !payload.nombre) {
+        showNotification('ID y Nombre del equipo son obligatorios', 'error');
+        return;
+    }
+
+    try {
+        const resp = await fetch(`${API_URL}/equipos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await resp.json().catch(() => ({}));
+
+        if (!resp.ok || result.success === false) {
+            console.error('Error creando equipo:', result);
+            showNotification(result.message || 'No se pudo crear el equipo', 'error');
+            return;
+        }
+
+        showNotification('Equipo creado correctamente', 'success');
+        e.target.reset();
+        await loadAdminData();
+        
+        // Actualizar estadísticas
+        if (currentTab === 'estadisticas') {
+            await loadEstadisticasTab();
+        }
+    } catch (err) {
+        console.error('Error al crear equipo:', err);
+        showNotification('Error de conexión al crear equipo', 'error');
+    }
+}
+
+// ============ CARGA DE DATOS DESDE JSON ============
+
+/**
+ * Carga datos desde el archivo JSON predefinido
+ */
+async function cargarDatosDesdeJSON() {
+    if (!confirm('¿Desea cargar los datos desde el archivo JSON? Esto agregará nuevos datos al sistema.')) {
+        return;
+    }
+
+    try {
+        showNotification('Cargando datos desde JSON...', 'info');
+        
+        const resp = await fetch(`${API_URL}/cargar-datos-archivo`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        let result;
+        try {
+            result = await resp.json();
+        } catch (jsonErr) {
+            console.error('Error parseando respuesta JSON:', jsonErr);
+            const text = await resp.text();
+            console.error('Respuesta del servidor:', text);
+            showNotification('Error: El servidor respondió con un formato inválido. Verifique la consola.', 'error');
+            return;
+        }
+
+        if (!resp.ok || result.success === false) {
+            console.error('Error cargando datos:', result);
+            const mensajeError = result.message || `Error ${resp.status}: ${resp.statusText}`;
+            showNotification(mensajeError, 'error');
+            return;
+        }
+
+        const resumen = result.resumen || {};
+        const mensaje = `Datos cargados exitosamente:\n` +
+            `• Zonas: ${resumen.zonas || 0}\n` +
+            `• Rutas: ${resumen.rutas || 0}\n` +
+            `• Recursos: ${resumen.recursos || 0}\n` +
+            `• Equipos: ${resumen.equipos || 0}\n` +
+            `• Usuarios: ${resumen.usuarios || 0}`;
+        
+        showNotification(mensaje, 'success');
+        
+        // Recargar datos en las pestañas activas
+        if (currentTab === 'mapa') {
+            await reloadZonesOnMap();
+        } else if (currentTab === 'admin') {
+            await loadAdminData();
+        } else if (currentTab === 'estadisticas') {
+            await loadStatistics();
+        } else if (currentTab === 'recursos') {
+            await loadResources();
+        }
+        
+    } catch (err) {
+        console.error('Error al cargar datos desde JSON:', err);
+        const mensajeError = err.message || 'Error de conexión al cargar datos. Verifique que el servidor esté corriendo.';
+        showNotification(mensajeError, 'error');
+    }
+}
+
+/**
+ * Carga datos desde un archivo JSON seleccionado por el usuario
+ */
+async function cargarDatosDesdeArchivoUsuario() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+            const fileContent = await file.text();
+            const datosJson = JSON.parse(fileContent);
+            
+            showNotification('Cargando datos desde archivo...', 'info');
+            
+            const resp = await fetch(`${API_URL}/cargar-datos`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(datosJson)
+            });
+
+            const result = await resp.json().catch(() => ({}));
+
+            if (!resp.ok || result.success === false) {
+                console.error('Error cargando datos:', result);
+                showNotification(result.message || 'No se pudieron cargar los datos', 'error');
+                return;
+            }
+
+            const resumen = result.resumen || {};
+            const mensaje = `Datos cargados exitosamente:\n` +
+                `• Zonas: ${resumen.zonas || 0}\n` +
+                `• Rutas: ${resumen.rutas || 0}\n` +
+                `• Recursos: ${resumen.recursos || 0}\n` +
+                `• Equipos: ${resumen.equipos || 0}\n` +
+                `• Usuarios: ${resumen.usuarios || 0}`;
+            
+            showNotification(mensaje, 'success');
+            
+            // Recargar datos en las pestañas activas
+            if (currentTab === 'mapa') {
+                await reloadZonesOnMap();
+            } else if (currentTab === 'admin') {
+                await loadAdminData();
+            } else if (currentTab === 'estadisticas') {
+                await loadStatistics();
+            } else if (currentTab === 'recursos') {
+                await loadResources();
+            }
+            
+        } catch (err) {
+            console.error('Error al procesar archivo JSON:', err);
+            showNotification('Error al leer el archivo JSON. Verifique el formato.', 'error');
+        }
+    };
+    
+    input.click();
+}
+
+function exportarReporte() {
+    if (!treeData || !treeData.children || treeData.children.length === 0) {
+        showNotification('No hay datos para exportar', 'error');
+        return;
+    }
+
+    let reporte = '=================================================\n';
+    reporte += 'REPORTE DE DISTRIBUCIÓN DE RECURSOS\n';
+    reporte += `Fecha: ${new Date().toLocaleString()}\n`;
+    reporte += '=================================================\n\n';
+    
+    reporte += `🏢 ${treeData.name}\n`;
+    reporte += `   Total de recursos: ${treeData.quantity}\n`;
+    reporte += `   ${treeData.info || ''}\n\n`;
+
+    treeData.children.forEach(base => {
+        reporte += `\n📍 ${base.name}\n`;
+        reporte += `   Recursos: ${base.quantity}\n`;
+        reporte += `   ${base.info || ''}\n`;
+        
+        if (base.children && base.children.length > 0) {
+            base.children.forEach(zona => {
+                reporte += `\n   └─ ${zona.name}\n`;
+                reporte += `      Recursos: ${zona.quantity}\n`;
+                reporte += `      ${zona.info || ''}\n`;
+                
+                if (zona.children && zona.children.length > 0) {
+                    zona.children.forEach(recurso => {
+                        reporte += `         • ${recurso.name}\n`;
+                    });
+                }
+            });
+        }
+    });
+
+    // Crear y descargar archivo
+    const blob = new Blob([reporte], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reporte-distribucion-${new Date().getTime()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+
+    showNotification('✅ Reporte exportado correctamente', 'success');
+}
+</script>
+</body>
+</html>
