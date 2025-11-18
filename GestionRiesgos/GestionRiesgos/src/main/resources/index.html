@@ -4677,3 +4677,523 @@ function showMap() {
         // Configurar layout del árbol con mejor separación
         d3Tree = d3.tree()
             .size([treeWidth - 200, treeHeight - 150])
+                        .separation((a, b) => (a.parent === b.parent ? 1.2 : 1.5));
+
+        console.log('✅ Árbol D3 inicializado correctamente');
+    }
+
+    function treeDiagonal(s, d) {
+        return `M ${s.x} ${s.y}
+                C ${s.x} ${(s.y + d.y) / 2},
+                ${d.x} ${(s.y + d.y) / 2},
+                ${d.x} ${d.y}`;
+    }
+
+    function getTreeColorByPriority(priority) {
+        priority = priority || 5;
+        if (priority >= 9) return "#e53e3e"; // Rojo crítico
+        if (priority >= 7) return "#667eea"; // Morado alto
+        if (priority >= 4) return "#48bb78"; // Verde medio
+        return "#ed8936"; // Naranja bajo
+    }
+
+    function updateTreeVisualization() {
+        if (!d3Tree || !treeData) {
+            console.error('❌ d3Tree o treeData no están inicializados');
+            return;
+        }
+
+        console.log('🎨 Actualizando visualización del árbol...');
+        console.log('📊 Estructura del árbol:', treeData);
+
+        try {
+            // Crear jerarquía desde los datos
+            treeRoot = d3.hierarchy(treeData, d => {
+                // Si el nodo está colapsado, no mostrar sus hijos
+                if (d._collapsed) return null;
+                return d.children;
+            });
+            
+            // Aplicar el layout del árbol
+            d3Tree(treeRoot);
+
+            console.log('✅ Jerarquía creada con', treeRoot.descendants().length, 'nodos');
+
+            // Actualizar estadísticas
+            updateTreeStats();
+            updateTreeParentSelect();
+            
+            // Dibujar el árbol
+            drawTree();
+            
+            console.log('✅ Visualización completada');
+        } catch (error) {
+            console.error('❌ Error en updateTreeVisualization:', error);
+            showNotification('Error al actualizar la visualización del árbol', 'error');
+        }
+    }
+
+    function drawTree() {
+        if (!treeRoot) {
+            console.error('❌ treeRoot no está definido');
+            return;
+        }
+
+        const duration = 750;
+
+        console.log('🎨 Dibujando árbol con', treeRoot.descendants().length, 'nodos');
+
+        // ==================== LINKS (Conexiones) ====================
+        const links = treeRoot.links();
+        console.log('🔗 Enlaces a dibujar:', links.length);
+
+        const link = treeG.selectAll(".d3-link")
+            .data(links, d => d.target.data.id);
+
+        // Eliminar enlaces antiguos
+        link.exit()
+            .transition()
+            .duration(duration)
+            .style("opacity", 0)
+            .remove();
+
+        // Agregar nuevos enlaces
+        const linkEnter = link.enter()
+            .append("path")
+            .attr("class", "d3-link")
+            .attr("d", d => {
+                return `M ${d.source.x} ${d.source.y}
+                        C ${d.source.x} ${(d.source.y + d.target.y) / 2},
+                        ${d.target.x} ${(d.source.y + d.target.y) / 2},
+                        ${d.target.x} ${d.target.y}`;
+            })
+            .style("opacity", 0)
+            .attr("stroke", d => getTreeColorByPriority(d.target.data.priority || 5))
+            .attr("stroke-width", 2)
+            .attr("fill", "none");
+
+        // Actualizar enlaces existentes
+        linkEnter.merge(link)
+            .transition()
+            .duration(duration)
+            .attr("d", d => {
+                return `M ${d.source.x} ${d.source.y}
+                        C ${d.source.x} ${(d.source.y + d.target.y) / 2},
+                        ${d.target.x} ${(d.source.y + d.target.y) / 2},
+                        ${d.target.x} ${d.target.y}`;
+            })
+            .attr("stroke", d => getTreeColorByPriority(d.target.data.priority || 5))
+            .style("opacity", 1);
+
+        // ==================== NODES (Nodos) ====================
+        const nodes = treeRoot.descendants();
+        console.log('🔵 Nodos a dibujar:', nodes.length);
+
+        const node = treeG.selectAll(".d3-node")
+            .data(nodes, d => d.data.id);
+
+        // Eliminar nodos antiguos
+        node.exit()
+            .transition()
+            .duration(duration)
+            .style("opacity", 0)
+            .remove();
+
+        // Agregar nuevos nodos
+        const nodeEnter = node.enter()
+            .append("g")
+            .attr("class", "d3-node")
+            .attr("transform", d => `translate(${d.x},${d.y})`)
+            .style("opacity", 0)
+            .style("cursor", "pointer")
+            .on("click", (event, d) => {
+                event.stopPropagation();
+                toggleTreeNode(event, d);
+            });
+
+        // Círculo del nodo
+        nodeEnter.append("circle")
+            .attr("r", treeNodeRadius)
+            .attr("stroke", d => getTreeColorByPriority(d.data.priority || 5))
+            .attr("fill", "#fff")
+            .attr("stroke-width", 3)
+            .style("filter", "drop-shadow(0 2px 4px rgba(0,0,0,0.2))");
+
+        // Texto: Nombre del nodo
+        nodeEnter.append("text")
+            .attr("dy", -treeNodeRadius - 10)
+            .attr("text-anchor", "middle")
+            .attr("fill", "#2d3748")
+            .style("font-weight", "700")
+            .style("font-size", "12px")
+            .style("pointer-events", "none")
+            .text(d => {
+                const name = d.data.name || 'Sin nombre';
+                return name.length > 20 ? name.substring(0, 20) + '...' : name;
+            });
+
+        // Texto: Cantidad de recursos
+        nodeEnter.append("text")
+            .attr("dy", 5)
+            .attr("text-anchor", "middle")
+            .attr("fill", "#667eea")
+            .style("font-size", "14px")
+            .style("font-weight", "700")
+            .style("pointer-events", "none")
+            .text(d => d.data.quantity > 0 ? d.data.quantity : '');
+
+        // Indicador de expansión/colapso
+        nodeEnter.each(function(d) {
+            if ((d.data.children && d.data.children.length > 0) || 
+                (d.data._children && d.data._children.length > 0)) {
+                
+                const g = d3.select(this);
+                
+                const hasChildren = d.data.children && d.data.children.length > 0;
+                
+                g.append("circle")
+                    .attr("class", "collapse-indicator")
+                    .attr("r", 8)
+                    .attr("cx", treeNodeRadius - 5)
+                    .attr("cy", -treeNodeRadius + 5)
+                    .attr("fill", hasChildren ? "#48bb78" : "#f56565")
+                    .attr("stroke", "#fff")
+                    .attr("stroke-width", 2)
+                    .style("cursor", "pointer");
+
+                g.append("text")
+                    .attr("class", "collapse-text")
+                    .attr("x", treeNodeRadius - 5)
+                    .attr("y", -treeNodeRadius + 5)
+                    .attr("dy", 4)
+                    .attr("text-anchor", "middle")
+                    .attr("fill", "#fff")
+                    .style("font-size", "10px")
+                    .style("font-weight", "bold")
+                    .style("pointer-events", "none")
+                    .text(hasChildren ? "-" : "+");
+            }
+        });
+
+        // Transición de entrada
+        nodeEnter.transition()
+            .duration(duration)
+            .attr("transform", d => `translate(${d.x},${d.y})`)
+            .style("opacity", 1);
+
+        // Actualizar nodos existentes
+        node.transition()
+            .duration(duration)
+            .attr("transform", d => `translate(${d.x},${d.y})`);
+
+        console.log('✅ Árbol dibujado exitosamente');
+    }
+
+    function treeDiagonal(s, d) {
+        return `M ${s.x} ${s.y}
+                C ${s.x} ${(s.y + d.y) / 2},
+                  ${d.x} ${(s.y + d.y) / 2},
+                  ${d.x} ${d.y}`;
+    }
+
+    function getTreeColorByPriority(priority) {
+        if (priority >= 7) return "#667eea";
+        if (priority >= 4) return "#48bb78";
+        return "#ed8936";
+    }
+
+    function toggleTreeNode(event, d) {
+        if (!d.data.children && !d.data._children) {
+            console.log('ℹ️ Este nodo no tiene hijos');
+            return;
+        }
+        
+        if (d.data.children) {
+            // Colapsar
+            d.data._children = d.data.children;
+            d.data.children = null;
+            d.data._collapsed = true;
+            console.log('📦 Nodo colapsado:', d.data.name);
+        } else {
+            // Expandir
+            d.data.children = d.data._children;
+            d.data._children = null;
+            d.data._collapsed = false;
+            console.log('📂 Nodo expandido:', d.data.name);
+        }
+        
+        updateTreeVisualization();
+    }
+
+    function updateTreeStats() {
+    const totalNodes = countTreeNodes(treeData) - 1;
+    const totalQuantity = treeData.quantity || 0;
+    const maxDepth = getTreeMaxDepth(treeRoot);
+
+    document.getElementById("treeTotalNodes").textContent = totalNodes;
+    document.getElementById("treeTotalQuantity").textContent = totalQuantity;
+    document.getElementById("treeMaxDepth").textContent = maxDepth;
+
+    // Calcular estadísticas adicionales
+    const bases = treeData.children.filter(c => c.id && c.id.startsWith('base-'));
+    const zonas = treeData.children.flatMap(c => c.children || []).filter(z => z.id && z.id.startsWith('zona-'));
+    
+    console.log(`📊 Estadísticas del árbol:`);
+    console.log(`   Nodos totales: ${totalNodes}`);
+    console.log(`   Recursos totales: ${totalQuantity}`);
+    console.log(`   Profundidad: ${maxDepth}`);
+    console.log(`   Bases: ${bases.length}`);
+    console.log(`   Zonas: ${zonas.length}`);
+}
+
+    function countTreeNodes(node) {
+        let count = 1;
+        if (node.children) {
+            node.children.forEach(child => {
+                count += countTreeNodes(child);
+            });
+        }
+        return count;
+    }
+
+    function sumTreeQuantities(node) {
+        let sum = node.id === "root" ? 0 : node.quantity;
+        if (node.children) {
+            node.children.forEach(child => {
+                sum += sumTreeQuantities(child);
+            });
+        }
+        return sum;
+    }
+
+    function getTreeMaxDepth(node) {
+        if (!node.children || node.children.length === 0) return 0;
+        return 1 + Math.max(...node.children.map(child => getTreeMaxDepth(child)));
+    }
+
+    function updateTreeParentSelect() {
+        const select = document.getElementById("treeParentNode");
+        select.innerHTML = '<option value="">Raíz</option>';
+
+        function addOptions(node, level = 0) {
+            if (node.id !== "root") {
+                const option = document.createElement("option");
+                option.value = node.id;
+                option.textContent = "  ".repeat(level) + node.name;
+                select.appendChild(option);
+            }
+            if (node.children) {
+                node.children.forEach(child => addOptions(child, level + 1));
+            }
+        }
+
+        addOptions(treeData);
+    }
+
+    function findTreeNode(node, id) {
+        if (node.id === id) return node;
+        if (node.children) {
+            for (let child of node.children) {
+                const found = findTreeNode(child, id);
+                if (found) return found;
+            }
+        }
+        return null;
+    }
+
+    // Controladores de eventos
+    document.getElementById('treeNodeForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const nodeId = document.getElementById("treeNodeId").value.trim();
+        const resourceSelect = document.getElementById("treeResourceSelect");
+        const resourceName = resourceSelect.options[resourceSelect.selectedIndex].text;
+        const resourceId = resourceSelect.value;
+        const quantity = parseInt(document.getElementById("treeQuantity").value) || 0;
+        const priority = parseInt(document.getElementById("treePriority").value) || 5;
+        const parentId = document.getElementById("treeParentNode").value;
+
+        if (!nodeId || !resourceId) {
+            showNotification("Por favor completa todos los campos requeridos", "error");
+            return;
+        }
+
+        const newNode = {
+            id: nodeId,
+            name: resourceName,
+            resourceId: resourceId,
+            quantity: quantity,
+            priority: priority,
+            children: []
+        };
+
+        if (parentId === "") {
+            treeData.children.push(newNode);
+            
+            // Llamar a la API para crear el nodo raíz
+            try {
+                await fetch(`${API_URL}/arbol/crearRaiz`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        recursoId: resourceId,
+                        cantidad: quantity
+                    })
+                });
+            } catch (error) {
+                console.error("Error creando nodo raíz en API:", error);
+            }
+        } else {
+            const parent = findTreeNode(treeData, parentId);
+            if (parent) {
+                parent.children.push(newNode);
+                
+                // Llamar a la API para agregar nodo
+                try {
+                    await fetch(`${API_URL}/arbol/agregarNodo`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            id: nodeId,
+                            recursoId: resourceId,
+                            cantidad: quantity,
+                            idPadre: parentId
+                        })
+                    });
+                } catch (error) {
+                    console.error("Error agregando nodo en API:", error);
+                }
+            } else {
+                showNotification("Nodo padre no encontrado", "error");
+                return;
+            }
+        }
+
+        updateTreeVisualization();
+        
+        // Limpiar formulario
+        document.getElementById("treeNodeId").value = "";
+        document.getElementById("treeQuantity").value = "100";
+        document.getElementById("treePriority").value = "5";
+        
+        showNotification(`Nodo "${resourceName}" agregado exitosamente`, "success");
+    });
+
+    async function loadTreeResources() {
+        try {
+            const response = await fetch(`${API_URL}/recursos`);
+            const recursos = await response.json();
+
+            const select = document.getElementById("treeResourceSelect");
+            select.innerHTML = '<option value="">Selecciona un recurso</option>';
+
+            recursos.forEach(recurso => {
+                const option = document.createElement("option");
+                option.value = recurso.id;
+                option.textContent = `${recurso.nombre} (${recurso.cantidadDisponible} ${recurso.unidadMedida})`;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.error("Error cargando recursos:", error);
+        }
+    }
+
+    async function treeLoadFromApi() {
+        try {
+            const response = await fetch(`${API_URL}/arbol/total`);
+            const data = await response.json();
+            
+            showNotification(`Total en árbol API: ${data.total}`, "success");
+        } catch (error) {
+            console.error("Error cargando del árbol API:", error);
+            showNotification("Error al cargar datos del árbol", "error");
+        }
+    }
+
+    function treeCenterView() {
+        if (!treeSvg || !treeZoom) return;
+        treeSvg.transition()
+            .duration(750)
+            .call(treeZoom.transform, d3.zoomIdentity.translate(treeWidth / 2, 50).scale(1));
+    }
+
+    function treeZoomIn() {
+        if (!treeSvg || !treeZoom) return;
+        treeSvg.transition()
+            .duration(300)
+            .call(treeZoom.scaleBy, 1.3);
+    }
+
+    function treeZoomOut() {
+        if (!treeSvg || !treeZoom) return;
+        treeSvg.transition()
+            .duration(300)
+            .call(treeZoom.scaleBy, 0.7);
+    }
+
+    function treeResetZoom() {
+        treeCenterView();
+    }
+
+    function treeExpandAll() {
+        function expand(node) {
+            if (node._children) {
+                node.children = node._children;
+                node._children = null;
+                node._collapsed = false;
+            }
+            if (node.children) {
+                node.children.forEach(expand);
+            }
+        }
+        expand(treeData);
+        updateTreeVisualization();
+        showNotification("✅ Todos los nodos expandidos", "success");
+    }
+
+    function treeCollapseAll() {
+        function collapse(node) {
+            if (node.children && node.id !== "root") {
+                node._children = node.children;
+                node.children = null;
+                node._collapsed = true;
+            }
+            if (node.children) {
+                node.children.forEach(collapse);
+            }
+        }
+        collapse(treeData);
+        updateTreeVisualization();
+        showNotification("✅ Todos los nodos contraídos", "success");
+    }
+
+    function treeClearAll() {
+        if (confirm("¿Estás seguro de que deseas limpiar el árbol? Se perderán todos los datos.")) {
+            treeData = {
+                id: "root",
+                name: "Distribución Central",
+                quantity: 0,
+                priority: 10,
+                children: []
+            };
+            updateTreeVisualization();
+            showNotification("Árbol limpiado", "success");
+        }
+    }
+
+    // ========================================================
+    // GENERACIÓN AUTOMÁTICA DEL ÁRBOL DESDE RECURSOS
+    // ========================================================
+    
+    async function updateTreeFromResources() {
+    try {
+        console.log('🌳 ========================================');
+        console.log('🌳 INICIANDO ACTUALIZACIÓN DEL ÁRBOL');
+        console.log('🌳 ========================================');
+        
+        // Obtener recursos y zonas desde el servidor
+        const [recursosRes, zonasRes] = await Promise.all([
+            fetch(`${API_URL}/recursos`).catch(err => {
+                console.error('❌ Error fetch recursos:', err);
+                return { ok: false };
+            }),
