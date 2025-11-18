@@ -3636,4 +3636,524 @@ function showNotification(message, type = 'info') {
                     <div class="zone-title">${z.nombre || z.id || 'Zona sin nombre'}</div>
                     <div class="zone-urgency ${urgencyClass}">${urgencia}</div>
                 </div>
-                <div class="zone-info">               
+                <div class="zone-info">
+                                    <div class="zone-info-item">
+                        <i class="fas fa-id-card"></i>
+                        <span><strong>ID:</strong> ${z.id ?? z.codigo ?? '-'}</span>
+                    </div>
+                    <div class="zone-info-item">
+                        <i class="fas fa-users"></i>
+                        <span><strong>Población afectada:</strong> ${poblacion}</span>
+                    </div>
+                    <div class="zone-info-item">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span><strong>Coordenadas:</strong> ${z.coordenadaX ?? z.latitud}, ${z.coordenadaY ?? z.longitud}</span>
+                    </div>
+                    <div class="zone-info-item">
+                        <i class="fas fa-align-left"></i>
+                        <span>${z.descripcion || 'Sin descripción'}</span>
+                    </div>
+                </div>
+            `;
+            cont.appendChild(card);
+        });
+    }
+
+    // ==========================
+    //   Pintar RECURSOS en Inicio
+    // ==========================
+    function renderRecursosInicio(recursosData) {
+        const cont = document.getElementById('recursosDisplay');
+
+        if (!Array.isArray(recursosData) || recursosData.length === 0) {
+            cont.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-box-open"></i>
+                    <h3>No hay recursos registrados</h3>
+                </div>`;
+            return;
+        }
+
+        cont.innerHTML = '';
+
+        // Agrupar por tipo
+        const agrupados = {};
+        recursosData.forEach(r => {
+            const tipo = (r.tipoRecurso || r.tipo || 'OTROS').toUpperCase();
+            if (!agrupados[tipo]) {
+                agrupados[tipo] = { total: 0, disponibles: 0 };
+            }
+
+            const cantTotal = r.cantidadTotal ?? r.cantidad ?? 1;
+            const cantDisp = r.cantidadDisponible ?? (r.disponible === true ? cantTotal : 0);
+
+            agrupados[tipo].total += Number.isFinite(cantTotal) ? cantTotal : 0;
+            agrupados[tipo].disponibles += Number.isFinite(cantDisp) ? cantDisp : 0;
+        });
+
+        Object.entries(agrupados).forEach(([tipo, data]) => {
+            const porc = data.total ? Math.round((data.disponibles / data.total) * 100) : 0;
+
+            const card = document.createElement('div');
+            card.className = 'resource-card';
+            card.innerHTML = `
+                <div class="resource-icon">
+                    <i class="fas fa-box"></i>
+                </div>
+                <div class="resource-type">${tipo}</div>
+                <div class="resource-amount">${data.total}</div>
+                <div style="font-size: 0.85rem; margin-bottom: 6px;">
+                    ${data.disponibles} disponibles (${porc}%)
+                </div>
+                <div class="resource-progress">
+                    <div class="resource-progress-bar" style="width: ${porc}%;"></div>
+                </div>
+            `;
+            cont.appendChild(card);
+        });
+    }
+
+    // ==========================
+    //   Pintar EQUIPOS en Inicio
+    // ==========================
+    function renderEquiposInicio(equiposData) {
+        const cont = document.getElementById('equiposDisplay');
+
+        if (!Array.isArray(equiposData) || equiposData.length === 0) {
+            cont.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-users"></i>
+                    <h3>No hay equipos registrados</h3>
+                </div>`;
+            return;
+        }
+
+        cont.innerHTML = '';
+
+        equiposData.forEach(eq => {
+            const nombre = eq.nombre || eq.nombreEquipo || ('Equipo #' + (eq.id ?? ''));
+            const tipo = eq.tipo || eq.tipoEquipo || 'Sin tipo';
+            const estado = normalizarEstado(eq.estado || 'DESCONOCIDO');
+            const eficiencia = eq.porcentajeEficiencia ?? eq.eficiencia ?? null;
+
+            let statusClass = 'status-transito';
+            if (estado === 'DISPONIBLE') statusClass = 'status-disponible';
+            else if (['EN_OPERACION', 'OPERACION', 'ACTIVO'].includes(estado)) statusClass = 'status-operacion';
+
+            const card = document.createElement('div');
+            card.className = 'team-card';
+            card.innerHTML = `
+                <div class="team-info">
+                    <div class="team-avatar">
+                        <i class="fas fa-user-shield"></i>
+                    </div>
+                    <div class="team-details">
+                        <div class="team-name">${nombre}</div>
+                        <div class="team-type">${tipo}</div>
+                    </div>
+                </div>
+                <div class="team-status">
+                    <span class="status-badge ${statusClass}">${estado}</span>
+                    <div class="efficiency-bar">
+                        <div class="efficiency-fill" style="width: ${eficiencia != null ? Math.max(0, Math.min(100, eficiencia)) : 50}%;"></div>
+                    </div>
+                </div>
+            `;
+            cont.appendChild(card);
+        });
+    }
+
+    // ==========================
+    //   COLA DE PRIORIDAD
+    // ==========================
+    async function loadColaPrioridad() {
+        const cont = document.getElementById('colaPrioridadDisplay');
+        if (!cont) {
+            console.warn('Elemento colaPrioridadDisplay no encontrado');
+            return;
+        }
+
+        // Timeout de seguridad: si después de 10 segundos no hay respuesta, mostrar error
+        const timeoutId = setTimeout(() => {
+            if (cont.innerHTML.includes('Cargando')) {
+                cont.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h3>Timeout al cargar datos</h3>
+                        <p>La solicitud está tardando demasiado. Verifica tu conexión y que el servidor esté funcionando.</p>
+                    </div>`;
+            }
+        }, 10000);
+
+        try {
+            cont.innerHTML = `
+                <div class="loading-state">
+                    <i class="fas fa-spinner fa-spin"></i> Cargando cola de evacuaciones...
+                </div>`;
+
+            const [todasRes, statsRes] = await Promise.all([
+                fetch(`${API_URL}/cola/todas`).catch(e => {
+                    console.error('Error fetch /cola/todas:', e);
+                    return { ok: false, status: 500 };
+                }),
+                fetch(`${API_URL}/cola/estadisticas`).catch(e => {
+                    console.error('Error fetch /cola/estadisticas:', e);
+                    return { ok: false, status: 500 };
+                })
+            ]);
+
+            let todas = [];
+            let stats = null;
+
+            try {
+                if (todasRes.ok) {
+                    const data = await safeJson(todasRes);
+                    todas = Array.isArray(data) ? data : [];
+                } else {
+                    console.warn('Respuesta no OK de /cola/todas:', todasRes.status);
+                }
+            } catch (e) {
+                console.error('Error parseando respuesta de /cola/todas:', e);
+            }
+
+            try {
+                if (statsRes.ok) {
+                    stats = await safeJson(statsRes);
+                } else {
+                    console.warn('Respuesta no OK de /cola/estadisticas:', statsRes.status);
+                }
+            } catch (e) {
+                console.error('Error parseando respuesta de /cola/estadisticas:', e);
+            }
+
+            // Si no hay evacuaciones, mostrar mensaje apropiado
+            if (!Array.isArray(todas) || todas.length === 0) {
+                let html = '<div class="cola-prioridad-stats">';
+                if (stats) {
+                    html += `
+                        <div class="stat-item">
+                            <span class="stat-label">Evacuaciones en cola:</span>
+                            <span class="stat-value">${stats.tamano || 0}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Procesadas:</span>
+                            <span class="stat-value">${stats.historialSize || 0}</span>
+                        </div>`;
+                } else {
+                    html += `
+                        <div class="stat-item">
+                            <span class="stat-label">Evacuaciones en cola:</span>
+                            <span class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Procesadas:</span>
+                            <span class="stat-value">0</span>
+                        </div>`;
+                }
+                html += '</div>';
+                html += `
+                    <div class="empty-state">
+                        <i class="fas fa-list-ol"></i>
+                        <h3>No hay evacuaciones en la cola</h3>
+                        <p>Las evacuaciones aparecerán aquí cuando se planifiquen.</p>
+                    </div>`;
+                cont.innerHTML = html;
+                return;
+            }
+
+            // Ordenar por prioridad descendente
+            todas.sort((a, b) => (b.prioridad || 0) - (a.prioridad || 0));
+
+            let html = '<div class="cola-prioridad-stats">';
+            if (stats) {
+                html += `
+                    <div class="stat-item">
+                        <span class="stat-label">Evacuaciones en cola:</span>
+                        <span class="stat-value">${stats.tamano || 0}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Procesadas:</span>
+                        <span class="stat-value">${stats.historialSize || 0}</span>
+                    </div>`;
+            }
+            html += '</div>';
+
+            html += '<div class="cola-prioridad-list">';
+            todas.forEach((ev, index) => {
+                const prioridad = ev.prioridad || 0;
+                const porcentaje = ev.porcentajeCompletado || 0;
+                const estado = ev.estado || 'PENDIENTE';
+                
+                let prioridadClass = 'prioridad-baja';
+                if (prioridad >= 7) prioridadClass = 'prioridad-critica';
+                else if (prioridad >= 5) prioridadClass = 'prioridad-alta';
+                else if (prioridad >= 3) prioridadClass = 'prioridad-media';
+
+                html += `
+                    <div class="cola-item ${prioridadClass}">
+                        <div class="cola-item-header">
+                            <div class="cola-item-number">#${index + 1}</div>
+                            <div class="cola-item-title">${ev.nombre || ev.id || 'Evacuación'}</div>
+                            <div class="cola-item-priority">
+                                <i class="fas fa-star"></i> ${prioridad}
+                            </div>
+                        </div>
+                        <div class="cola-item-info">
+                            <div class="info-row">
+                                <span><i class="fas fa-users"></i> Personas a evacuar: <strong>${ev.personasAEvacuar || 0}</strong></span>
+                                <span><i class="fas fa-check-circle"></i> Evacuadas: <strong>${ev.personasEvacuadas || 0}</strong></span>
+                            </div>
+                            <div class="info-row">
+                                <span><i class="fas fa-exclamation-triangle"></i> Urgencia: <strong>${ev.nivelUrgencia || 'N/A'}</strong></span>
+                                <span><i class="fas fa-info-circle"></i> Estado: <strong>${estado}</strong></span>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: ${Math.min(100, porcentaje)}%"></div>
+                                </div>
+                                <span class="progress-text">${porcentaje.toFixed(1)}% completado</span>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+            html += '</div>';
+
+            clearTimeout(timeoutId);
+            cont.innerHTML = html;
+        } catch (error) {
+            clearTimeout(timeoutId);
+            console.error('Error cargando cola de prioridad:', error);
+            let errorHtml = '<div class="cola-prioridad-stats">';
+            errorHtml += `
+                <div class="stat-item">
+                    <span class="stat-label">Evacuaciones en cola:</span>
+                    <span class="stat-value">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Procesadas:</span>
+                    <span class="stat-value">0</span>
+                </div>`;
+            errorHtml += '</div>';
+            errorHtml += `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Error cargando cola de prioridad</h3>
+                    <p>${error.message || 'Error desconocido'}</p>
+                    <p style="font-size: 0.85rem; color: #718096; margin-top: 10px;">Revisa la consola del navegador para más detalles.</p>
+                </div>`;
+            cont.innerHTML = errorHtml;
+        }
+    }
+
+    async function priorizarCola() {
+        try {
+            const resp = await fetch(`${API_URL}/cola/priorizar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const result = await resp.json().catch(() => ({}));
+
+            if (resp.ok && result.success) {
+                showNotification('Cola priorizada correctamente', 'success');
+                await loadColaPrioridad();
+            } else {
+                showNotification(result.message || 'Error al priorizar la cola', 'error');
+            }
+        } catch (error) {
+            console.error('Error priorizando cola:', error);
+            showNotification('Error de conexión al priorizar la cola', 'error');
+        }
+    }
+
+    async function procesarSiguienteEvacuacion() {
+        try {
+            const resp = await fetch(`${API_URL}/cola/procesar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const result = await resp.json().catch(() => ({}));
+
+            if (resp.ok && result.success) {
+                showNotification(`Evacuación ${result.id} procesada. Estado: ${result.estado}`, 'success');
+                await loadColaPrioridad();
+                await loadInicioData(); // Actualizar datos generales
+            } else {
+                showNotification(result.message || 'No hay evacuaciones para procesar', 'warning');
+            }
+        } catch (error) {
+            console.error('Error procesando evacuación:', error);
+            showNotification('Error de conexión al procesar la evacuación', 'error');
+        }
+    }
+
+    // ==========================
+    //   MAPA DE RECURSOS
+    // ==========================
+    async function loadMapaRecursos() {
+        const cont = document.getElementById('mapaRecursosDisplay');
+        if (!cont) {
+            console.warn('Elemento mapaRecursosDisplay no encontrado');
+            return;
+        }
+
+        // Timeout de seguridad: si después de 10 segundos no hay respuesta, mostrar error
+        const timeoutId = setTimeout(() => {
+            if (cont.innerHTML.includes('Cargando')) {
+                cont.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h3>Timeout al cargar datos</h3>
+                        <p>La solicitud está tardando demasiado. Verifica tu conexión y que el servidor esté funcionando.</p>
+                    </div>`;
+            }
+        }, 10000);
+
+        try {
+            cont.innerHTML = `
+                <div class="loading-state">
+                    <i class="fas fa-spinner fa-spin"></i> Cargando mapa de recursos...
+                </div>`;
+
+            const [recursosRes, rutasRes, statsRes] = await Promise.all([
+                fetch(`${API_URL}/mapa/recursos/todos`).catch(e => {
+                    console.error('Error fetch /mapa/recursos/todos:', e);
+                    return { ok: false, status: 500 };
+                }),
+                fetch(`${API_URL}/rutas`).catch(e => {
+                    console.error('Error fetch /rutas:', e);
+                    return { ok: false, status: 500 };
+                }),
+                fetch(`${API_URL}/mapa/estadisticas`).catch(e => {
+                    console.error('Error fetch /mapa/estadisticas:', e);
+                    return { ok: false, status: 500 };
+                })
+            ]);
+
+            let recursos = [];
+            let rutas = [];
+            let stats = null;
+
+            try {
+                if (recursosRes.ok) {
+                    const data = await safeJson(recursosRes);
+                    recursos = Array.isArray(data) ? data : [];
+                } else {
+                    console.warn('Respuesta no OK de /mapa/recursos/todos:', recursosRes.status);
+                }
+            } catch (e) {
+                console.error('Error parseando respuesta de /mapa/recursos/todos:', e);
+            }
+
+            try {
+                if (rutasRes.ok) {
+                    const data = await safeJson(rutasRes);
+                    rutas = Array.isArray(data) ? data : [];
+                } else {
+                    console.warn('Respuesta no OK de /rutas:', rutasRes.status);
+                }
+            } catch (e) {
+                console.error('Error parseando respuesta de /rutas:', e);
+            }
+
+            try {
+                if (statsRes.ok) {
+                    stats = await safeJson(statsRes);
+                } else {
+                    console.warn('Respuesta no OK de /mapa/estadisticas:', statsRes.status);
+                }
+            } catch (e) {
+                console.error('Error parseando respuesta de /mapa/estadisticas:', e);
+            }
+
+            // Construir HTML con estadísticas si están disponibles
+            let html = '<div class="mapa-recursos-stats">';
+            if (stats) {
+                html += `
+                    <div class="stat-item">
+                        <span class="stat-label">Total recursos:</span>
+                        <span class="stat-value">${stats.totalRecursos || 0}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Rutas con recursos:</span>
+                        <span class="stat-value">${stats.totalRutas || 0}</span>
+                    </div>`;
+            } else {
+                // Si no hay estadísticas, mostrar valores por defecto
+                html += `
+                    <div class="stat-item">
+                        <span class="stat-label">Total recursos:</span>
+                        <span class="stat-value">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Rutas con recursos:</span>
+                        <span class="stat-value">0</span>
+                    </div>`;
+            }
+            html += '</div>';
+
+            // Si no hay recursos y no hay estadísticas, mostrar mensaje vacío
+            if ((!Array.isArray(recursos) || recursos.length === 0) && !stats) {
+                html += `
+                    <div class="empty-state">
+                        <i class="fas fa-map-marked-alt"></i>
+                        <h3>No hay recursos en el mapa</h3>
+                        <p>Los recursos se mostrarán aquí cuando se asignen a rutas. Los recursos se asignan automáticamente cuando tienen una ubicación asociada a una ruta.</p>
+                    </div>`;
+                cont.innerHTML = html;
+                return;
+            }
+
+            // Agregar recursos por tipo si hay estadísticas
+            if (stats && stats.recursosPorTipo) {
+                html += '<div class="mapa-recursos-tipos"><h4>Recursos por Tipo:</h4><div class="tipos-grid">';
+                for (const [tipo, cantidad] of Object.entries(stats.recursosPorTipo)) {
+                    html += `
+                        <div class="tipo-item">
+                            <span class="tipo-nombre">${tipo}</span>
+                            <span class="tipo-cantidad">${cantidad}</span>
+                        </div>`;
+                }
+                html += '</div></div>';
+            }
+
+            // Mostrar recursos agrupados por ruta
+            html += '<div class="mapa-recursos-rutas"><h4>Recursos por Ruta:</h4>';
+            
+            // Crear un mapa de recursos por ruta
+            const recursosPorRuta = new Map();
+            
+            // Para cada ruta, buscar recursos asociados
+            for (const ruta of rutas) {
+                try {
+                    const recursosRutaRes = await fetch(`${API_URL}/mapa/recursos/ruta/${ruta.id}`);
+                    const recursosRuta = await safeJson(recursosRutaRes) || [];
+                    
+                    if (recursosRuta.length > 0) {
+                        recursosPorRuta.set(ruta.id, {
+                            ruta: ruta,
+                            recursos: recursosRuta
+                        });
+                    }
+                } catch (e) {
+                    console.warn(`Error cargando recursos para ruta ${ruta.id}:`, e);
+                }
+            }
+
+            if (recursosPorRuta.size === 0) {
+                html += `
+                    <div class="empty-state-small">
+                        <i class="fas fa-info-circle"></i>
+                        <p>No hay recursos asignados a rutas específicas. Los recursos se asignan automáticamente cuando tienen una ubicación asociada a una ruta.</p>
+                    </div>`;
+            } else {
+                // Abrir el contenedor grid
+                html += '<div class="mapa-recursos-rutas-grid">';
+                
+                for (const [rutaId, data] of recursosPorRuta) {
+                    const ruta = data.ruta;
+                    html += `
+                        <div class="ruta-recursos-card">
+                            <div class="ruta-recursos-header">
+                                <h5><i class="fas fa-route"></i> Ruta ${ruta.id || rutaId}</h5>
+                                <span class="ruta-info">${ruta.origenId || '?'} → ${ruta.destinoId || '?'}</span>
+                            </div>               
