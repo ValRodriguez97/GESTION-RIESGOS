@@ -230,24 +230,10 @@
         .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
 
         #map {
-            height: 600px !important;
-            min-height: 600px !important;
-            width: 100% !important;
-            border-radius: 8px;
+            height: 600px; border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             border: 1px solid #e1e8ed;
             margin-bottom: 20px;
-            position: relative;
-            z-index: 1;
-        }
-        
-        /* Asegurar que los tiles del mapa sean visibles */
-        .leaflet-container {
-            background-color: #f4f4f4 !important;
-        }
-        
-        .leaflet-tile-container img {
-            max-width: none !important;
         }
         .map-controls {
             background: white; padding: 24px; border-radius: 8px;
@@ -353,20 +339,10 @@
             color: #666;
         }
 
-        /* Estilo original para el panel de routing manual */
         .leaflet-routing-container {
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        }
-        
-        /* Ocultar paneles de routing automático - se aplicará dinámicamente */
-        .route-auto-hidden .leaflet-routing-container,
-        .route-auto-hidden .leaflet-routing-instructions,
-        .route-auto-hidden .leaflet-routing-alt {
-            display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
         }
         /* ===================================
    SISTEMA DE PESTAÑAS
@@ -2283,22 +2259,6 @@
                         <i class="fas fa-sync-alt"></i> Actualizar
                     </button>
                 </div>
-                <div style="margin-bottom: 20px; padding: 15px; background: #f7fafc; border-radius: 8px; border: 1px solid #e1e8ed;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #2d3748;">
-                        <i class="fas fa-map-marked-alt"></i> Visualizar Ruta en el Mapa
-                    </label>
-                    <div style="display: flex; gap: 10px;">
-                        <select id="routeSelector" onchange="onRouteSelectorChange()" style="flex: 1; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 14px;">
-                            <option value="">Selecciona una ruta para visualizar...</option>
-                        </select>
-                        <button class="btn-action" onclick="clearAllRoutesFromMap()" style="background: #e53e3e;">
-                            <i class="fas fa-trash"></i> Limpiar Todas
-                        </button>
-                    </div>
-                    <p style="margin-top: 8px; font-size: 12px; color: #718096;">
-                        <i class="fas fa-info-circle"></i> Selecciona una ruta del menú desplegable para verla en el mapa interactivo
-                    </p>
-                </div>
                 <div id="routesList">
                     <div class="loading-state">
                         <i class="fas fa-spinner fa-spin"></i> Cargando rutas...
@@ -2583,22 +2543,6 @@
                     <div style="width: 40px; height: 4px; background: #2196f3; border-radius: 2px;"></div>
                     <span><strong>Ruta por Calles Reales</strong> (OpenStreetMap)</span>
                 </div>
-                <div class="map-controls">
-                    <h3>Modo de Operación</h3>
-                    
-                    <!-- NUEVO: Botón para reiniciar el mapa -->
-                    <div style="background: #fff3cd; padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #ffc107;">
-                        <p style="margin: 0 0 10px 0; color: #856404; font-size: 0.9rem;">
-                            <i class="fas fa-info-circle"></i> 
-                            ¿No se ve el mapa? Haz clic en el botón para recargarlo:
-                        </p>
-                        <button onclick="reiniciarMapa()" class="btn-action" style="width: 100%;">
-                            <i class="fas fa-sync-alt"></i> Reiniciar Mapa
-                        </button>
-                    </div>
-                    
-                    <div class="mode-selector">
-                        <!-- resto del código... -->
             </div>
         </div>
     </div>
@@ -2818,9 +2762,6 @@
     let zoneCircles = [];
     let currentRoutingControl = null;
     let tempCircle = null;
-    // Variables para rutas visualizadas en el mapa
-    let displayedRoutes = []; // Array de objetos {routeId, routingControl, markers}
-    let allRoutesData = []; // Almacena todas las rutas cargadas
     let treeData = {
         id: "root",
         name: "Distribución Central",
@@ -2920,55 +2861,50 @@ function destroyCharts() {
         }
     }
 
-    // Función para configurar las pestañas visibles según el rol del usuario
-    function configureTabsByRole() {
+    // Función para actualizar la visibilidad de las pestañas según el rol del usuario
+    function updateTabsVisibility() {
         if (!currentUser) {
-            // Si no hay usuario, mostrar todas las pestañas (estado inicial)
-            document.querySelectorAll('.tabs-header .tab-button').forEach(button => {
-                button.style.display = 'flex';
+            // Si no hay usuario, ocultar todas las pestañas excepto inicio
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                const tabName = btn.getAttribute('data-tab');
+                if (tabName !== 'inicio') {
+                    btn.style.display = 'none';
+                }
             });
             return;
         }
 
-        const rol = currentUser.rol || '';
-        const tabButtons = document.querySelectorAll('.tabs-header .tab-button');
-        let activeTabHidden = false;
+        const rol = currentUser.rol;
+        const adminTabButton = document.querySelector('.tab-button[data-tab="admin"]');
         
-        tabButtons.forEach(button => {
-            const tabName = button.getAttribute('data-tab');
-            let shouldShow = false;
+        // Buscar botones de acciones rápidas que redirigen a admin
+        const quickActionButtons = document.querySelectorAll('.action-btn');
+        const addResourceButton = Array.from(quickActionButtons).find(btn => 
+            btn.getAttribute('onclick') && btn.getAttribute('onclick').includes("switchTab('admin')")
+        );
 
-            if (rol === 'Administrador') {
-                // Administrador ve todas las pestañas:
-                // - Panel de Administración (gestionar recursos, asignar recursos)
-                // - Panel de Rutas (definir rutas de transporte)
-                // - Estadísticas (generar informes)
-                // - Árbol de Distribución (visualizar distribución)
-                // - Mapa Interactivo (visualizar zonas)
-                // - Inicio (panel de control)
-                shouldShow = true;
-            } else if (rol === 'Operador de Emergencia') {
-                // Operador de emergencia solo ve:
-                // - Inicio (panel de control)
-                // - Panel de Rutas (priorizar evacuaciones, coordinar distribución)
-                // - Mapa Interactivo (monitorear ubicaciones afectadas y actualizar situación)
-                shouldShow = tabName === 'inicio' || tabName === 'rutas' || tabName === 'mapa';
+        if (rol === 'Administrador') {
+            // Administrador: mostrar todas las pestañas
+            if (adminTabButton) {
+                adminTabButton.style.display = 'flex';
             }
-
-            if (shouldShow) {
-                button.style.display = 'flex';
-            } else {
-                button.style.display = 'none';
-                // Verificar si la pestaña oculta estaba activa
-                if (button.classList.contains('active')) {
-                    activeTabHidden = true;
-                }
+            // Mostrar botón de agregar recurso
+            if (addResourceButton) {
+                addResourceButton.style.display = 'flex';
             }
-        });
-
-        // Si la pestaña activa fue ocultada, cambiar a inicio
-        if (activeTabHidden) {
-            switchTab('inicio');
+        } else if (rol === 'Operador de Emergencia') {
+            // Operador de Emergencia: ocultar Panel de Administración
+            if (adminTabButton) {
+                adminTabButton.style.display = 'none';
+            }
+            // Ocultar botón de agregar recurso (solo para administradores)
+            if (addResourceButton) {
+                addResourceButton.style.display = 'none';
+            }
+            // Si está en la pestaña de admin, cambiar a inicio
+            if (currentTab === 'admin') {
+                switchTab('inicio');
+            }
         }
     }
 
@@ -2982,8 +2918,8 @@ function destroyCharts() {
                 document.getElementById('loginPage').style.display = 'none';
                 document.getElementById('dashboard').style.display = 'block';
                 document.getElementById('userInfo').innerHTML = `<i class="fas fa-user"></i> ${currentUser.nombre}`;
-                // Configurar pestañas según el rol
-                configureTabsByRole();
+                // Actualizar visibilidad de pestañas según el rol
+                updateTabsVisibility();
                 // Cargar datos del panel de inicio
                 if (typeof loadInicioData === 'function') {
                     loadInicioData();
@@ -3029,8 +2965,8 @@ if (data.success) {
         document.getElementById('dashboard').style.display = 'block';
         document.getElementById('userInfo').innerHTML = `<i class="fas fa-user"></i> ${data.user.nombre}`;
 
-        // Configurar pestañas según el rol del usuario
-        configureTabsByRole();
+        // Actualizar visibilidad de pestañas según el rol
+        updateTabsVisibility();
 
         // cargar datos del panel de inicio
         loadInicioData();
@@ -4322,79 +4258,17 @@ function showNotification(message, type = 'info') {
 
     // Funciones del Mapa
     async function initializeMap() {
-    const mapElement = document.getElementById('map');
-    if (!mapElement) {
-        console.error('❌ El elemento del mapa no existe');
-        return;
-    }
-    
-    // Si el mapa ya existe, destruirlo completamente antes de recrearlo
-    if (map) {
-        console.log('🔄 Destruyendo mapa existente...');
-        map.remove();
-        map = null;
-    }
-    
-    // Asegurar que el contenedor tenga altura
-    mapElement.style.height = '600px';
-    mapElement.style.minHeight = '600px';
-    mapElement.style.width = '100%';
-    
-    console.log('🗺️ Creando nuevo mapa...');
-    await verificarConectividadMapa();
-    
-    // Crear el mapa con configuración mejorada
-    map = L.map('map', {
-        center: [4.5389, -75.6678], // Calarcá, Quindío
-        zoom: 13,
-        zoomControl: true,
-        preferCanvas: false,
-        attributionControl: true
-    });
+        if (!map) {
+            map = L.map('map').setView([4.5389, -75.6678], 13);
 
-    // Agregar tiles de OpenStreetMap con mejor configuración
-    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        maxZoom: 19,
-        minZoom: 3,
-        tileSize: 256,
-        crossOrigin: true,
-        updateWhenIdle: false,
-        updateWhenZooming: true,
-        keepBuffer: 2
-    });
-    
-    // Agregar la capa al mapa
-    osmLayer.addTo(map);
-    
-    // Esperar a que se cargue al menos un tile
-    await new Promise((resolve) => {
-        osmLayer.once('load', () => {
-            console.log('✅ Tiles cargados correctamente');
-            resolve();
-        });
-        
-        // Timeout de seguridad
-        setTimeout(() => {
-            console.log('⏱️ Timeout de carga de tiles');
-            resolve();
-        }, 5000);
-    });
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
 
-    // Configurar eventos del mapa
-    map.on('click', handleMapClick);
-    
-    // Forzar actualización del tamaño varias veces
-    setTimeout(() => { if (map) map.invalidateSize(); }, 100);
-    setTimeout(() => { if (map) map.invalidateSize(); }, 300);
-    setTimeout(() => { if (map) map.invalidateSize(); }, 600);
-    setTimeout(() => { if (map) map.invalidateSize(); }, 1000);
-    
-    console.log('✅ Mapa inicializado correctamente');
-    
-    // Cargar las zonas
-    await loadZones();
-}
+            map.on('click', handleMapClick);
+            await loadZones();
+        }
+    }
 
     async function loadZones() {
         try {
@@ -4702,441 +4576,6 @@ function showNotification(message, type = 'info') {
         resetMode();
     }
 
-    // Función para mostrar una ruta guardada en el mapa
-    async function showRouteOnMap(routeId, routeData) {
-        // Asegurar que el mapa esté inicializado
-        if (!map) {
-            console.log('Inicializando mapa...');
-            await initializeMap();
-            // Esperar un poco para que los tiles se carguen
-            await new Promise(resolve => setTimeout(resolve, 500));
-        }
-        
-        // Verificar que el mapa esté completamente cargado
-        if (!map || !map.getContainer()) {
-            console.error('El mapa no se pudo inicializar');
-            showNotification('Error: El mapa no está disponible. Por favor, recarga la página.', 'error');
-            return;
-        }
-        
-        // Asegurar que los tiles estén cargados
-        let hasTiles = false;
-        let tileLayer = null;
-        map.eachLayer(function(layer) {
-            if (layer instanceof L.TileLayer) {
-                hasTiles = true;
-                tileLayer = layer;
-            }
-        });
-        
-        if (!hasTiles) {
-            console.log('Agregando tiles al mapa...');
-            tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-                maxZoom: 19,
-                minZoom: 3,
-                tileSize: 256,
-                zoomOffset: 0
-            });
-            tileLayer.addTo(map);
-            // Esperar un poco para que los tiles se carguen
-            await new Promise(resolve => setTimeout(resolve, 500));
-        } else if (tileLayer) {
-            // Si ya hay tiles, forzar redibujado
-            tileLayer.redraw();
-        }
-        
-        // Invalidar el tamaño del mapa múltiples veces para asegurar renderizado
-        setTimeout(() => {
-            if (map) {
-                map.invalidateSize();
-            }
-        }, 100);
-        
-        setTimeout(() => {
-            if (map) {
-                map.invalidateSize();
-                // Forzar redibujado de tiles
-                if (tileLayer) {
-                    tileLayer.redraw();
-                }
-            }
-        }, 300);
-
-        // Obtener coordenadas de origen y destino
-    let origenLat, origenLng, destinoLat, destinoLng;
-    
-    // ✅ CORRECCIÓN: coordenadaY es LATITUD, coordenadaX es LONGITUD
-    if (routeData.origen && routeData.origen.coordenadaX && routeData.origen.coordenadaY) {
-        origenLat = routeData.origen.coordenadaY;  // ✅ Latitud
-        origenLng = routeData.origen.coordenadaX;  // ✅ Longitud
-    } else if (routeData.origen && routeData.origen.id) {
-        const origenId = routeData.origen.id;
-        const zonaOrigen = zonasParaRutas.find(z => z.id === origenId);
-        if (zonaOrigen && zonaOrigen.coordenadaX && zonaOrigen.coordenadaY) {
-            origenLat = zonaOrigen.coordenadaY;  // ✅ Latitud
-            origenLng = zonaOrigen.coordenadaX;  // ✅ Longitud
-        } else {
-            try {
-                const resp = await fetch(`${API_URL}/zonas/${origenId}`);
-                if (resp.ok) {
-                    const zona = await resp.json();
-                    origenLat = zona.coordenadaY;  // ✅ Latitud
-                    origenLng = zona.coordenadaX;  // ✅ Longitud
-                }
-            } catch (e) {
-                console.error('Error cargando zona origen:', e);
-            }
-        }
-    } else if (routeData.origenId) {
-        const zonaOrigen = zonasParaRutas.find(z => z.id === routeData.origenId);
-        if (zonaOrigen && zonaOrigen.coordenadaX && zonaOrigen.coordenadaY) {
-            origenLat = zonaOrigen.coordenadaY;  // ✅ Latitud
-            origenLng = zonaOrigen.coordenadaX;  // ✅ Longitud
-        } else {
-            try {
-                const resp = await fetch(`${API_URL}/zonas/${routeData.origenId}`);
-                if (resp.ok) {
-                    const zona = await resp.json();
-                    origenLat = zona.coordenadaY;  // ✅ Latitud
-                    origenLng = zona.coordenadaX;  // ✅ Longitud
-                }
-            } catch (e) {
-                console.error('Error cargando zona origen:', e);
-            }
-        }
-    }
-    if (routeData.destino && routeData.destino.coordenadaX && routeData.destino.coordenadaY) {
-        destinoLat = routeData.destino.coordenadaY;  // ✅ Latitud
-        destinoLng = routeData.destino.coordenadaX;  // ✅ Longitud
-    } else if (routeData.destino && routeData.destino.id) {
-        const destinoId = routeData.destino.id;
-        const zonaDestino = zonasParaRutas.find(z => z.id === destinoId);
-        if (zonaDestino && zonaDestino.coordenadaX && zonaDestino.coordenadaY) {
-            destinoLat = zonaDestino.coordenadaY;  // ✅ Latitud
-            destinoLng = zonaDestino.coordenadaX;  // ✅ Longitud
-        } else {
-            try {
-                const resp = await fetch(`${API_URL}/zonas/${destinoId}`);
-                if (resp.ok) {
-                    const zona = await resp.json();
-                    destinoLat = zona.coordenadaY;  // ✅ Latitud
-                    destinoLng = zona.coordenadaX;  // ✅ Longitud
-                }
-            } catch (e) {
-                console.error('Error cargando zona destino:', e);
-            }
-        }
-    } else if (routeData.destinoId) {
-        const zonaDestino = zonasParaRutas.find(z => z.id === routeData.destinoId);
-        if (zonaDestino && zonaDestino.coordenadaX && zonaDestino.coordenadaY) {
-            destinoLat = zonaDestino.coordenadaY;  // ✅ Latitud
-            destinoLng = zonaDestino.coordenadaX;  // ✅ Longitud
-        } else {
-            try {
-                const resp = await fetch(`${API_URL}/zonas/${routeData.destinoId}`);
-                if (resp.ok) {
-                    const zona = await resp.json();
-                    destinoLat = zona.coordenadaY;  // ✅ Latitud
-                    destinoLng = zona.coordenadaX;  // ✅ Longitud
-                }
-            } catch (e) {
-                console.error('Error cargando zona destino:', e);
-            }
-        }
-    }
-
-        if (!origenLat || !origenLng || !destinoLat || !destinoLng) {
-            showNotification('No se pudieron obtener las coordenadas de la ruta', 'error');
-            return;
-        }
-
-        // Remover ruta anterior si existe
-        removeRouteFromMap(routeId);
-
-        // Crear marcadores para origen y destino
-        const originMarker = L.marker([origenLat, origenLng], {
-            icon: L.divIcon({
-                html: `<div style="background: #4CAF50; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"><span style="color: white; font-size: 14px; font-weight: bold;">A</span></div>`,
-                className: '',
-                iconSize: [30, 30],
-                iconAnchor: [15, 15]
-            })
-        }).addTo(map)
-        .bindPopup(`<strong>Origen:</strong> ${routeData.origen?.nombre || routeData.origenId}<br>Ruta: ${routeId}`);
-
-        const destMarker = L.marker([destinoLat, destinoLng], {
-            icon: L.divIcon({
-                html: `<div style="background: #F44336; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"><span style="color: white; font-size: 14px; font-weight: bold;">B</span></div>`,
-                className: '',
-                iconSize: [30, 30],
-                iconAnchor: [15, 15]
-            })
-        }).addTo(map)
-        .bindPopup(`<strong>Destino:</strong> ${routeData.destino?.nombre || routeData.destinoId}<br>Ruta: ${routeId}`);
-
-        // Determinar color según tipo de ruta
-        let routeColor = '#2196f3'; // Azul por defecto
-        if (routeData.tipo === 'Aérea' || routeData.tipo === 'AEREA') {
-            routeColor = '#9c27b0'; // Morado
-        } else if (routeData.tipo === 'Marítima' || routeData.tipo === 'MARITIMA') {
-            routeColor = '#00bcd4'; // Cyan
-        } else {
-            routeColor = '#4caf50'; // Verde para terrestre
-        }
-
-        // Crear control de routing exactamente igual que calculateRealRoute()
-        // pero con el color personalizado según el tipo de ruta
-        const routingControl = L.Routing.control({
-            waypoints: [
-                L.latLng(origenLat, origenLng),
-                L.latLng(destinoLat, destinoLng)
-            ],
-            routeWhileDragging: false,
-            showAlternatives: false,
-            lineOptions: {
-                styles: [
-                    {
-                        color: routeColor,
-                        weight: 6,
-                        opacity: 0.8
-                    }
-                ]
-            },
-            createMarker: function() { return null; } // No crear marcadores adicionales
-        }).addTo(map);
-        
-        // Ocultar los paneles de información del routing control
-        // Agregar una clase al contenedor para identificarlo
-        const hideRoutingPanels = () => {
-            try {
-                // Agregar clase al contenedor del routing control para ocultarlo con CSS
-                if (routingControl._container) {
-                    routingControl._container.classList.add('route-auto-hidden');
-                    
-                    // También ocultar directamente los paneles
-                    const containerPanels = routingControl._container.querySelectorAll(
-                        '.leaflet-routing-container, .leaflet-routing-instructions, .leaflet-routing-alt'
-                    );
-                    containerPanels.forEach(panel => {
-                        panel.style.display = 'none';
-                        panel.style.visibility = 'hidden';
-                        panel.style.opacity = '0';
-                        panel.style.height = '0';
-                        panel.style.width = '0';
-                        panel.style.overflow = 'hidden';
-                    });
-                }
-                
-                // También buscar y ocultar paneles que puedan estar fuera del contenedor
-                const allPanels = document.querySelectorAll(
-                    '.leaflet-routing-container, .leaflet-routing-instructions, .leaflet-routing-alt'
-                );
-                allPanels.forEach(panel => {
-                    // Solo ocultar si no es parte del routing control manual (currentRoutingControl)
-                    if (!currentRoutingControl || !currentRoutingControl._container || 
-                        !currentRoutingControl._container.contains(panel)) {
-                        panel.style.display = 'none';
-                        panel.style.visibility = 'hidden';
-                        panel.style.opacity = '0';
-                    }
-                });
-            } catch (e) {
-                console.warn('Error ocultando paneles de routing:', e);
-            }
-        };
-        
-        // Ocultar inmediatamente y después de que se cree
-        hideRoutingPanels();
-        setTimeout(hideRoutingPanels, 50);
-        setTimeout(hideRoutingPanels, 200);
-        setTimeout(hideRoutingPanels, 500);
-        setTimeout(hideRoutingPanels, 1000);
-        
-        // Ocultar cuando se encuentre la ruta
-        routingControl.on('routesfound', function() {
-            setTimeout(hideRoutingPanels, 10);
-            setTimeout(hideRoutingPanels, 100);
-            setTimeout(hideRoutingPanels, 500);
-        });
-
-        // Guardar referencia a la ruta visualizada con información adicional
-        const routeInfo = {
-            routeId: routeId,
-            routingControl: routingControl,
-            markers: [originMarker, destMarker],
-            routeData: routeData,
-            routeLine: null // Se llenará cuando se calcule la ruta
-        };
-        
-        // Escuchar cuando se encuentre la ruta para guardar la línea
-        routingControl.on('routesfound', function(e) {
-            if (e.routes && e.routes.length > 0) {
-                // Guardar referencia a la línea de la ruta
-                const route = e.routes[0];
-                // El routing control crea automáticamente la línea, pero podemos guardar referencia
-                routeInfo.routeLine = route;
-            }
-        });
-        
-        displayedRoutes.push(routeInfo);
-
-        // Cambiar a la pestaña del mapa si no está ahí
-        if (currentTab !== 'mapa') {
-            switchTab('mapa');
-            // Esperar a que el mapa se renderice después de cambiar de pestaña
-            await new Promise(resolve => setTimeout(resolve, 300));
-            // Invalidar tamaño para asegurar renderizado correcto
-            if (map) {
-                map.invalidateSize();
-            }
-        }
-        
-        // Ajustar vista del mapa para mostrar la ruta completa
-        setTimeout(() => {
-            if (map && origenLat && origenLng && destinoLat && destinoLng) {
-                const bounds = L.latLngBounds([origenLat, origenLng], [destinoLat, destinoLng]);
-                map.fitBounds(bounds, { padding: [50, 50] });
-            }
-        }, 200);
-
-        showNotification(`Ruta ${routeId} mostrada en el mapa`, 'success');
-    }
-
-    // Función para remover una ruta del mapa
-    function removeRouteFromMap(routeId) {
-        const routeIndex = displayedRoutes.findIndex(r => r.routeId === routeId);
-        if (routeIndex !== -1) {
-            const route = displayedRoutes[routeIndex];
-            
-            // Remover el routing control correctamente
-            if (route.routingControl) {
-                try {
-                    // El routing control tiene un método remove() o podemos usar removeControl
-                    if (typeof route.routingControl.remove === 'function') {
-                        route.routingControl.remove();
-                    } else {
-                        map.removeControl(route.routingControl);
-                    }
-                    
-                    // También remover el contenedor del DOM si existe
-                    if (route.routingControl._container && route.routingControl._container.parentNode) {
-                        route.routingControl._container.parentNode.removeChild(route.routingControl._container);
-                    }
-                } catch (e) {
-                    console.warn('Error removiendo routing control:', e);
-                    // Intentar métodos alternativos
-                    try {
-                        if (route.routingControl._container) {
-                            route.routingControl._container.remove();
-                        }
-                        map.removeControl(route.routingControl);
-                    } catch (e2) {
-                        console.warn('Error en método alternativo:', e2);
-                    }
-                }
-            }
-            
-            // Remover marcadores
-            if (route.markers && Array.isArray(route.markers)) {
-                route.markers.forEach(marker => {
-                    try {
-                        if (marker) {
-                            map.removeLayer(marker);
-                        }
-                    } catch (e) {
-                        console.warn('Error removiendo marcador:', e);
-                    }
-                });
-            }
-            
-            displayedRoutes.splice(routeIndex, 1);
-            
-            // Recargar la lista de rutas para actualizar el estado
-            if (typeof loadAllRoutes === 'function') {
-                setTimeout(() => loadAllRoutes(), 100);
-            }
-            
-            showNotification(`Ruta ${routeId} removida del mapa`, 'success');
-        }
-    }
-
-    // Función para limpiar todas las rutas del mapa
-    function clearAllRoutesFromMap() {
-        if (!map) {
-            console.error('El mapa no está inicializado');
-            showNotification('El mapa no está inicializado', 'error');
-            return;
-        }
-        
-        if (displayedRoutes.length === 0) {
-            showNotification('No hay rutas para limpiar', 'info');
-            return;
-        }
-        
-        // Crear una copia del array para evitar problemas durante la iteración
-        const routesToRemove = [...displayedRoutes];
-        let removedCount = 0;
-        
-        routesToRemove.forEach(route => {
-            try {
-                // Remover el routing control correctamente
-                if (route.routingControl) {
-                    try {
-                        // Intentar usar el método remove() si existe
-                        if (typeof route.routingControl.remove === 'function') {
-                            route.routingControl.remove();
-                        } else {
-                            map.removeControl(route.routingControl);
-                        }
-                        
-                        // También remover el contenedor del DOM si existe
-                        if (route.routingControl._container && route.routingControl._container.parentNode) {
-                            route.routingControl._container.parentNode.removeChild(route.routingControl._container);
-                        }
-                    } catch (e) {
-                        console.warn('Error removiendo routing control:', e);
-                        // Intentar métodos alternativos
-                        try {
-                            if (route.routingControl._container) {
-                                route.routingControl._container.remove();
-                            }
-                            map.removeControl(route.routingControl);
-                        } catch (e2) {
-                            console.warn('Error en método alternativo:', e2);
-                        }
-                    }
-                }
-                
-                // Remover marcadores
-                if (route.markers && Array.isArray(route.markers)) {
-                    route.markers.forEach(marker => {
-                        try {
-                            if (marker) {
-                                map.removeLayer(marker);
-                            }
-                        } catch (e) {
-                            console.warn('Error removiendo marcador:', e);
-                        }
-                    });
-                }
-                
-                removedCount++;
-            } catch (e) {
-                console.error('Error procesando ruta para remover:', e);
-            }
-        });
-        
-        displayedRoutes = [];
-        
-        // Recargar la lista de rutas para actualizar el estado
-        if (typeof loadAllRoutes === 'function') {
-            setTimeout(() => loadAllRoutes(), 100);
-        }
-        
-        showNotification(`${removedCount} ruta(s) removida(s) del mapa`, 'success');
-    }
-
     function setMode(mode) {
         currentMode = mode;
 
@@ -5242,12 +4681,10 @@ function showMap() {
             currentUser = null;
             // Limpiar localStorage al cerrar sesión
             localStorage.removeItem('currentUser');
-            // Restablecer todas las pestañas a visible
-            document.querySelectorAll('.tabs-header .tab-button').forEach(button => {
-                button.style.display = 'flex';
+            // Restaurar visibilidad de todas las pestañas
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.style.display = 'flex';
             });
-            // Cambiar a la pestaña de inicio
-            switchTab('inicio');
             document.getElementById('dashboard').style.display = 'none';
             document.getElementById('loginPage').style.display = 'flex';
             document.getElementById('username').value = '';
@@ -6035,6 +5472,12 @@ async function manualUpdateTree() {
     // FUNCIONES SWITCH DE PESTAÑAS
     //=========================================================
     function switchTab(tabName) {
+        // Verificar permisos: si es operador intentando acceder a admin, redirigir a inicio
+        if (tabName === 'admin' && currentUser && currentUser.rol === 'Operador de Emergencia') {
+            console.warn('Acceso denegado: Los operadores de emergencia no pueden acceder al Panel de Administración');
+            tabName = 'inicio';
+        }
+        
         // Actualizar la pestaña actual
         currentTab = tabName;
         
@@ -6050,22 +5493,14 @@ async function manualUpdateTree() {
 
         // 3. Inicializar según la pestaña principal
         if (tabName === 'mapa') {
-    // Esperar a que la pestaña sea visible antes de inicializar
-    setTimeout(async () => {
-        const mapaTab = document.getElementById('mapa-tab');
-        if (mapaTab && mapaTab.classList.contains('active')) {
-            console.log('🗺️ Inicializando mapa en pestaña activa...');
-            
-            // Siempre recrear el mapa para asegurar que se renderice correctamente
-            if (map) {
-                map.remove();
-                map = null;
-            }
-            
-            await initializeMap();
+            setTimeout(() => {
+                if (!map) {
+                    initializeMap();
+                } else {
+                    map.invalidateSize();
+                }
+            }, 100);
         }
-    }, 200); // Aumentado a 200ms para dar tiempo al DOM
-}
 
         if (tabName === 'inicio') {
             loadInicioData();
@@ -6722,11 +6157,6 @@ async function assignResourceToZone() {
                 btn.classList.add('active');
             }
         });
-        
-        // Cargar rutas cuando se cambia a la pestaña ver-rutas
-        if (tabName === 'ver-rutas') {
-            loadAllRoutes();
-        }
     }
 
    // Variables globales para almacenar zonas cargadas
@@ -6957,10 +6387,10 @@ async function calculateRoutePreview() {
     
     // Calcular distancia y tiempo
     const distancia = calcularDistanciaGeografica(
-        zonaOrigen.coordenadaY,   // ✅ Latitud origen
-        zonaOrigen.coordenadaX,   // ✅ Longitud origen
-        zonaDestino.coordenadaY,  // ✅ Latitud destino
-        zonaDestino.coordenadaX   // ✅ Longitud destino
+        zonaOrigen.coordenadaX,
+        zonaOrigen.coordenadaY,
+        zonaDestino.coordenadaX,
+        zonaDestino.coordenadaY
     );
     
     const tiempo = calcularTiempoEstimado(distancia, tipoRuta);
@@ -7094,10 +6524,10 @@ let rutasPanelInicializado = false;
                 
                 // Calcular distancia y tiempo automáticamente
                 const distancia = calcularDistanciaGeografica(
-                    zonaOrigen.coordenadaY,   // ✅ Latitud origen
-                    zonaOrigen.coordenadaX,   // ✅ Longitud origen
-                    zonaDestino.coordenadaY,  // ✅ Latitud destino
-                    zonaDestino.coordenadaX   // ✅ Longitud destino
+                    zonaOrigen.coordenadaX,
+                    zonaOrigen.coordenadaY,
+                    zonaDestino.coordenadaX,
+                    zonaDestino.coordenadaY
                 );
                 
                 const tiempoEstimado = calcularTiempoEstimado(distancia, tipoRuta);
@@ -7116,40 +6546,6 @@ let rutasPanelInicializado = false;
                 if (!routeData.id || !routeData.origenId || !routeData.destinoId) {
                     showNotification('Completa todos los campos obligatorios', 'error');
                     return;
-                }
-
-                // Verificar si el ID de ruta ya existe
-                try {
-                    const existingRoutesResp = await fetch(`${API_URL}/rutas`);
-                    if (existingRoutesResp.ok) {
-                        const existingRoutes = await existingRoutesResp.json();
-                        const routeExists = existingRoutes.some(r => r.id === routeData.id);
-                        if (routeExists) {
-                            showNotification(`El ID de ruta "${routeData.id}" ya existe. Por favor usa otro ID.`, 'error');
-                            return;
-                        }
-                    }
-                } catch (checkError) {
-                    console.warn('No se pudo verificar rutas existentes:', checkError);
-                    // Continuar de todas formas, el backend validará
-                }
-
-                // Verificar que las zonas existan en el servidor
-                try {
-                    const zonaOrigenCheck = await fetch(`${API_URL}/zonas/${origenId}`);
-                    const zonaDestinoCheck = await fetch(`${API_URL}/zonas/${destinoId}`);
-                    
-                    if (!zonaOrigenCheck.ok) {
-                        showNotification(`La zona origen "${origenId}" no existe en el servidor.`, 'error');
-                        return;
-                    }
-                    if (!zonaDestinoCheck.ok) {
-                        showNotification(`La zona destino "${destinoId}" no existe en el servidor.`, 'error');
-                        return;
-                    }
-                } catch (checkError) {
-                    console.warn('No se pudieron verificar las zonas:', checkError);
-                    // Continuar de todas formas, el backend validará
                 }
 
                 console.log('📤 Enviando ruta al servidor:', routeData);
@@ -7181,37 +6577,13 @@ let rutasPanelInicializado = false;
                             `✅ Ruta creada: ${distancia.toFixed(2)} km en ${tiempoEstimado.toFixed(2)} horas`, 
                             'success'
                         );
-                        
-                        // Mostrar la ruta automáticamente en el mapa
-                        const newRouteData = {
-                            id: routeData.id,
-                            origenId: origenId,
-                            destinoId: destinoId,
-                            origen: { nombre: zonaOrigen.nombre, coordenadaX: zonaOrigen.coordenadaX, coordenadaY: zonaOrigen.coordenadaY },
-                            destino: { nombre: zonaDestino.nombre, coordenadaX: zonaDestino.coordenadaX, coordenadaY: zonaDestino.coordenadaY },
-                            distancia: routeData.distancia,
-                            tiempoEstimado: routeData.tiempoEstimado,
-                            tipo: routeData.tipo
-                        };
-                        await showRouteOnMap(routeData.id, newRouteData);
-                        
                         // Solo resetear el formulario cuando la creación es exitosa
                         routeForm.reset();
                         document.getElementById('routePreview').style.display = 'none';
                         await loadAllRoutes();
                     } else {
                         console.error('❌ Error del servidor:', result);
-                        let errorMessage = result.message || 'No se pudo crear la ruta. Verifica los datos ingresados.';
-                        
-                        // Mejorar mensajes de error comunes
-                        if (errorMessage.includes('zonas existan') || errorMessage.includes('zona')) {
-                            errorMessage = `Error: Las zonas seleccionadas no existen o no son válidas. Verifica que las zonas "${origenId}" y "${destinoId}" existan en el sistema.`;
-                        } else if (errorMessage.includes('duplicado') || errorMessage.includes('ID')) {
-                            errorMessage = `Error: El ID de ruta "${routeData.id}" ya existe. Por favor usa otro ID único.`;
-                        } else if (!errorMessage.includes('Error:')) {
-                            errorMessage = `Error: ${errorMessage}`;
-                        }
-                        
+                        const errorMessage = result.message || 'No se pudo crear la ruta. Verifica los datos ingresados.';
                         showNotification(errorMessage, 'error');
                         // NO resetear el formulario cuando hay error - mantener los datos para que el usuario pueda corregirlos
                     }
@@ -7428,7 +6800,6 @@ async function loadAllRoutes() {
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
         const rutas = await resp.json();
-        allRoutesData = rutas; // Guardar rutas para el selector
 
         if (!Array.isArray(rutas) || rutas.length === 0) {
             container.innerHTML = `
@@ -7436,7 +6807,6 @@ async function loadAllRoutes() {
                     <i class="fas fa-route"></i>
                     <h3>No hay rutas registradas</h3>
                 </div>`;
-            updateRouteSelector();
             return;
         }
 
@@ -7444,9 +6814,6 @@ async function loadAllRoutes() {
         rutas.forEach(r => {
             const card = document.createElement('div');
             card.className = 'route-card';
-            const isDisplayed = displayedRoutes.some(dr => dr.routeId === r.id);
-            
-            // Crear estructura HTML básica
             card.innerHTML = `
                 <div class="route-header">
                     <h4><i class="fas fa-route"></i> ${r.id}</h4>
@@ -7458,37 +6825,9 @@ async function loadAllRoutes() {
                     <p><i class="fas fa-road"></i> <strong>Distancia:</strong> ${r.distancia} km</p>
                     <p><i class="fas fa-clock"></i> <strong>Tiempo:</strong> ${r.tiempoEstimado} hrs</p>
                 </div>
-                <div class="route-actions" style="display: flex; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e1e8ed;">
-                    <button class="btn-action route-show-btn" data-route-id="${r.id}" style="flex: 1; background: ${isDisplayed ? '#e53e3e' : '#4299e1'};">
-                        <i class="fas fa-${isDisplayed ? 'eye-slash' : 'map-marked-alt'}"></i> ${isDisplayed ? 'Ocultar' : 'Ver en Mapa'}
-                    </button>
-                    ${isDisplayed ? `<button class="btn-action route-remove-btn" data-route-id="${r.id}" style="flex: 1; background: #e53e3e;">
-                        <i class="fas fa-times"></i> Remover
-                    </button>` : ''}
-                </div>
             `;
-            
-            // Agregar event listeners para los botones
-            const showBtn = card.querySelector('.route-show-btn');
-            if (showBtn) {
-                showBtn.addEventListener('click', async () => {
-                    await showRouteOnMap(r.id, r);
-                    await loadAllRoutes(); // Recargar para actualizar el estado
-                });
-            }
-            
-            const removeBtn = card.querySelector('.route-remove-btn');
-            if (removeBtn) {
-                removeBtn.addEventListener('click', async () => {
-                    removeRouteFromMap(r.id);
-                    await loadAllRoutes(); // Recargar para actualizar el estado
-                });
-            }
-            
             container.appendChild(card);
         });
-        
-        updateRouteSelector();
     } catch (err) {
         console.error('Error cargando rutas:', err);
         container.innerHTML = `
@@ -7496,33 +6835,6 @@ async function loadAllRoutes() {
                 <i class="fas fa-exclamation-triangle"></i>
                 <h3>Error cargando rutas</h3>
             </div>`;
-    }
-}
-
-// Función para actualizar el selector de rutas
-function updateRouteSelector() {
-    const selector = document.getElementById('routeSelector');
-    if (!selector) return;
-    
-    selector.innerHTML = '<option value="">Selecciona una ruta para visualizar...</option>';
-    if (allRoutesData && allRoutesData.length > 0) {
-        allRoutesData.forEach(r => {
-            const option = document.createElement('option');
-            option.value = r.id;
-            option.textContent = `${r.id} - ${r.origen?.nombre || r.origenId} → ${r.destino?.nombre || r.destinoId}`;
-            selector.appendChild(option);
-        });
-    }
-}
-
-// Función para manejar la selección de ruta desde el selector
-async function onRouteSelectorChange() {
-    const selector = document.getElementById('routeSelector');
-    if (!selector || !selector.value) return;
-    
-    const selectedRoute = allRoutesData.find(r => r.id === selector.value);
-    if (selectedRoute) {
-        await showRouteOnMap(selectedRoute.id, selectedRoute);
     }
 }
 
@@ -8071,12 +7383,10 @@ async function loadEvacuaciones() {
             currentUser = null;
             // Limpiar localStorage al cerrar sesión
             localStorage.removeItem('currentUser');
-            // Restablecer todas las pestañas a visible
-            document.querySelectorAll('.tabs-header .tab-button').forEach(button => {
-                button.style.display = 'flex';
+            // Restaurar visibilidad de todas las pestañas
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.style.display = 'flex';
             });
-            // Cambiar a la pestaña de inicio
-            switchTab('inicio');
             document.getElementById('dashboard').style.display = 'none';
             document.getElementById('loginPage').style.display = 'flex';
             document.getElementById('username').value = '';
@@ -8434,32 +7744,6 @@ function exportarReporte() {
     window.URL.revokeObjectURL(url);
 
     showNotification('✅ Reporte exportado correctamente', 'success');
-}
-
-async function reiniciarMapa() {
-    console.log('🔄 Reiniciando mapa manualmente...');
-    showNotification('Reiniciando mapa...', 'info');
-    
-    if (map) {
-        map.remove();
-        map = null;
-    }
-    
-    await initializeMap();
-    showNotification('✅ Mapa reiniciado correctamente', 'success');
-}
-
-async function verificarConectividadMapa() {
-    try {
-        const testUrl = 'https://tile.openstreetmap.org/0/0/0.png';
-        const response = await fetch(testUrl, { mode: 'no-cors' });
-        console.log('✅ Conectividad con OpenStreetMap OK');
-        return true;
-    } catch (error) {
-        console.error('❌ No se puede conectar con OpenStreetMap:', error);
-        showNotification('⚠️ Problemas de conectividad con el servicio de mapas', 'warning');
-        return false;
-    }
 }
 </script>
 </body>
