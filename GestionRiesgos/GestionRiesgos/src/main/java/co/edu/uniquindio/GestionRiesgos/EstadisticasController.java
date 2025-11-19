@@ -1,5 +1,4 @@
 package co.edu.uniquindio.GestionRiesgos;
 
-public class EstadisticasController {
-    
+public class EstadisticasController {   
 }

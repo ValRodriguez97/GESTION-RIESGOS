@@ -1,8 +1,5 @@
 package co.edu.uniquindio.GestionRiesgos;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -10,21 +7,32 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * Controlador personalizado para manejar errores HTTP
- * Reemplaza la página de error por defecto de Spring Boot
+ * Controlador personalizado para manejar errores HTTP.
+ * <p>
+ * Reemplaza la página de error por defecto de Spring Boot y devuelve
+ * respuestas JSON amigables para la API REST.
+ * </p>
  */
 @RestController
 public class ErrorController implements org.springframework.boot.web.servlet.error.ErrorController {
 
+    /**
+     * Maneja cualquier error HTTP y genera un JSON con información del error.
+     *
+     * @param request el objeto HttpServletRequest con atributos de error
+     * @return ResponseEntity con detalles del error en formato JSON
+     */
     @RequestMapping("/error")
     public ResponseEntity<Map<String, Object>> handleError(HttpServletRequest request) {
         Object status = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);
         Object message = request.getAttribute(RequestDispatcher.ERROR_MESSAGE);
         Object exception = request.getAttribute(RequestDispatcher.ERROR_EXCEPTION);
         Object requestUri = request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI);
-        
+
         // Ignorar errores de archivos estáticos comunes (favicon, etc.)
         if (requestUri != null) {
             String uri = requestUri.toString();
@@ -50,7 +58,7 @@ public class ErrorController implements org.springframework.boot.web.servlet.err
                 case 404:
                     error.put("message", "El endpoint solicitado no existe.");
                     error.put("path", requestUri != null ? requestUri.toString() : "Desconocido");
-                    error.put("suggestion", "Verifica la URL del endpoint. Los endpoints disponibles están bajo /api/");
+                    error.put("suggestion", "Verifica la URL del endpoint. Los endpoints disponibles están bajo /api/.");
                     break;
                 case 405:
                     error.put("message", "Método HTTP no permitido para este endpoint.");
@@ -83,6 +91,12 @@ public class ErrorController implements org.springframework.boot.web.servlet.err
         return ResponseEntity.status(httpStatus).body(error);
     }
 
+    /**
+     * Retorna un nombre de tipo de error a partir del código HTTP.
+     *
+     * @param statusCode código de estado HTTP
+     * @return string con el tipo de error
+     */
     private String getErrorType(int statusCode) {
         switch (statusCode) {
             case 400: return "BAD_REQUEST";
@@ -95,5 +109,3 @@ public class ErrorController implements org.springframework.boot.web.servlet.err
         }
     }
 }
-
-
