@@ -6,14 +6,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Clase que representa un administrador del sistema de gestión de desastres
- * Hereda de Usuario y tiene permisos completos del sistema
+ * Clase que representa un administrador del sistema de gestión de desastres.
+ * Hereda de Usuario y posee permisos completos y especiales del sistema.
  */
 public class Administrador extends Usuario {
+
+    /** Lista de permisos especiales que posee el administrador */
     private List<String> permisosEspeciales;
+
+    /** Departamento al que pertenece el administrador */
     private String departamento;
+
+    /** Nivel de autorización del administrador (1-5) */
     private int nivelAutorizacion;
-    
+
+    /**
+     * Constructor por defecto.
+     * Inicializa permisos especiales, rol de administrador y nivel máximo de autorización.
+     */
     public Administrador() {
         super();
         this.permisosEspeciales = new ArrayList<>();
@@ -21,18 +31,29 @@ public class Administrador extends Usuario {
         this.nivelAutorizacion = 5; // Máximo nivel
         inicializarPermisosEspeciales();
     }
-    
+
+    /**
+     * Constructor completo.
+     * 
+     * @param id Identificador único del administrador
+     * @param nombre Nombre del administrador
+     * @param apellido Apellido del administrador
+     * @param email Correo electrónico
+     * @param username Nombre de usuario
+     * @param password Contraseña
+     * @param departamento Departamento al que pertenece
+     */
     public Administrador(String id, String nombre, String apellido, String email, 
-                        String username, String password, String departamento) {
+                         String username, String password, String departamento) {
         super(id, nombre, apellido, email, username, password, Rol.ADMINISTRADOR);
         this.permisosEspeciales = new ArrayList<>();
         this.departamento = departamento;
         this.nivelAutorizacion = 5;
         inicializarPermisosEspeciales();
     }
-    
+
     /**
-     * Inicializa los permisos especiales del administrador
+     * Inicializa la lista de permisos especiales del administrador.
      */
     private void inicializarPermisosEspeciales() {
         permisosEspeciales.add("gestionar_usuarios");
@@ -51,54 +72,68 @@ public class Administrador extends Usuario {
         permisosEspeciales.add("generar_reportes");
         permisosEspeciales.add("configurar_alertas");
     }
-    
-    // Métodos específicos del administrador
+
     /**
-     * Verifica si el administrador tiene un permiso especial
+     * Verifica si el administrador tiene un permiso especial.
+     * 
+     * @param permiso Nombre del permiso
+     * @return true si posee el permiso, false en caso contrario
      */
     public boolean tienePermisoEspecial(String permiso) {
         return permisosEspeciales.contains(permiso.toLowerCase());
     }
-    
+
     /**
-     * Agrega un permiso especial al administrador
+     * Agrega un permiso especial al administrador.
+     * 
+     * @param permiso Nombre del permiso a agregar
      */
     public void agregarPermisoEspecial(String permiso) {
         if (!permisosEspeciales.contains(permiso.toLowerCase())) {
             permisosEspeciales.add(permiso.toLowerCase());
         }
     }
-    
+
     /**
-     * Remueve un permiso especial del administrador
+     * Remueve un permiso especial del administrador.
+     * 
+     * @param permiso Nombre del permiso a remover
      */
     public void removerPermisoEspecial(String permiso) {
         permisosEspeciales.remove(permiso.toLowerCase());
     }
-    
+
     /**
-     * Obtiene todos los permisos especiales
+     * Obtiene la lista de permisos especiales.
+     * 
+     * @return Lista de permisos
      */
     public List<String> getPermisosEspeciales() {
         return new ArrayList<>(permisosEspeciales);
     }
-    
+
     /**
-     * Verifica si puede autorizar operaciones de alto nivel
+     * Verifica si puede autorizar operaciones de alto nivel.
+     * 
+     * @return true si nivel de autorización >= 4
      */
     public boolean puedeAutorizarAltoNivel() {
         return nivelAutorizacion >= 4;
     }
-    
+
     /**
-     * Verifica si puede gestionar otros administradores
+     * Verifica si puede gestionar otros administradores.
+     * 
+     * @return true si nivel de autorización = 5
      */
     public boolean puedeGestionarAdministradores() {
         return nivelAutorizacion >= 5;
     }
-    
+
     /**
-     * Genera un reporte de actividad del administrador
+     * Genera un reporte de actividad del administrador.
+     * 
+     * @return Reporte en formato String
      */
     public String generarReporteActividad() {
         StringBuilder reporte = new StringBuilder();
@@ -113,28 +148,28 @@ public class Administrador extends Usuario {
         reporte.append("Permisos Especiales: ").append(permisosEspeciales.size()).append("\n");
         return reporte.toString();
     }
-    
-    
+
     public String getDepartamento() {
         return departamento;
     }
-    
+
     public void setDepartamento(String departamento) {
         this.departamento = departamento;
     }
-    
+
     public int getNivelAutorizacion() {
         return nivelAutorizacion;
     }
-    
+
     public void setNivelAutorizacion(int nivelAutorizacion) {
         this.nivelAutorizacion = Math.max(1, Math.min(5, nivelAutorizacion));
     }
-    
+
     @Override
     public String toString() {
         return String.format("Administrador{id='%s', nombre='%s', departamento='%s', nivel=%d}", 
-        getId(), obtenerNombreCompleto(), departamento, nivelAutorizacion);
+                             getId(), obtenerNombreCompleto(), departamento, nivelAutorizacion);
     }
 }
+
 
