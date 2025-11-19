@@ -2583,6 +2583,22 @@
                     <div style="width: 40px; height: 4px; background: #2196f3; border-radius: 2px;"></div>
                     <span><strong>Ruta por Calles Reales</strong> (OpenStreetMap)</span>
                 </div>
+                <div class="map-controls">
+                    <h3>Modo de Operación</h3>
+                    
+                    <!-- NUEVO: Botón para reiniciar el mapa -->
+                    <div style="background: #fff3cd; padding: 12px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #ffc107;">
+                        <p style="margin: 0 0 10px 0; color: #856404; font-size: 0.9rem;">
+                            <i class="fas fa-info-circle"></i> 
+                            ¿No se ve el mapa? Haz clic en el botón para recargarlo:
+                        </p>
+                        <button onclick="reiniciarMapa()" class="btn-action" style="width: 100%;">
+                            <i class="fas fa-sync-alt"></i> Reiniciar Mapa
+                        </button>
+                    </div>
+                    
+                    <div class="mode-selector">
+                        <!-- resto del código... -->
             </div>
         </div>
     </div>
@@ -4306,93 +4322,79 @@ function showNotification(message, type = 'info') {
 
     // Funciones del Mapa
     async function initializeMap() {
-        const mapElement = document.getElementById('map');
-        if (!mapElement) {
-            console.error('El elemento del mapa no existe');
-            return;
-        }
-        
-        // Si el mapa ya existe, solo invalidar tamaño
-        if (map) {
-            // Esperar a que el contenedor sea visible
-            setTimeout(() => {
-                if (map) {
-                    map.invalidateSize();
-                    // Forzar actualización de tiles
-                    map.eachLayer(function(layer) {
-                        if (layer instanceof L.TileLayer) {
-                            layer.redraw();
-                        }
-                    });
-                }
-            }, 200);
-            return;
-        }
-        
-        // Asegurar que el contenedor tenga altura
-        if (mapElement.offsetHeight === 0) {
-            mapElement.style.height = '600px';
-            mapElement.style.minHeight = '600px';
-        }
-        
-        // Crear el mapa
-        map = L.map('map', {
-            center: [4.5389, -75.6678],
-            zoom: 13,
-            zoomControl: true,
-            preferCanvas: false
-        });
-
-        // Agregar tiles de OpenStreetMap con configuración mejorada
-        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            maxZoom: 19,
-            minZoom: 3,
-            tileSize: 256,
-            zoomOffset: 0,
-            errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' // Tile de error transparente
-        });
-        
-        osmLayer.addTo(map);
-        
-        // Escuchar cuando los tiles se carguen
-        osmLayer.on('tileload', function() {
-            console.log('Tile cargado correctamente');
-        });
-        
-        osmLayer.on('tileerror', function(error, tile) {
-            console.warn('Error cargando tile:', error, tile);
-        });
-
-        map.on('click', handleMapClick);
-        
-        // Invalidar tamaño múltiples veces para asegurar renderizado
-        setTimeout(() => {
-            if (map) {
-                map.invalidateSize();
-            }
-        }, 100);
-        
-        setTimeout(() => {
-            if (map) {
-                map.invalidateSize();
-                // Forzar redibujado de tiles
-                map.eachLayer(function(layer) {
-                    if (layer instanceof L.TileLayer) {
-                        layer.redraw();
-                    }
-                });
-            }
-        }, 300);
-        
-        setTimeout(() => {
-            if (map) {
-                map.invalidateSize();
-            }
-        }, 600);
-        
-        await loadZones();
+    const mapElement = document.getElementById('map');
+    if (!mapElement) {
+        console.error('❌ El elemento del mapa no existe');
+        return;
     }
+    
+    // Si el mapa ya existe, destruirlo completamente antes de recrearlo
+    if (map) {
+        console.log('🔄 Destruyendo mapa existente...');
+        map.remove();
+        map = null;
+    }
+    
+    // Asegurar que el contenedor tenga altura
+    mapElement.style.height = '600px';
+    mapElement.style.minHeight = '600px';
+    mapElement.style.width = '100%';
+    
+    console.log('🗺️ Creando nuevo mapa...');
+    await verificarConectividadMapa();
+    
+    // Crear el mapa con configuración mejorada
+    map = L.map('map', {
+        center: [4.5389, -75.6678], // Calarcá, Quindío
+        zoom: 13,
+        zoomControl: true,
+        preferCanvas: false,
+        attributionControl: true
+    });
+
+    // Agregar tiles de OpenStreetMap con mejor configuración
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+        minZoom: 3,
+        tileSize: 256,
+        crossOrigin: true,
+        updateWhenIdle: false,
+        updateWhenZooming: true,
+        keepBuffer: 2
+    });
+    
+    // Agregar la capa al mapa
+    osmLayer.addTo(map);
+    
+    // Esperar a que se cargue al menos un tile
+    await new Promise((resolve) => {
+        osmLayer.once('load', () => {
+            console.log('✅ Tiles cargados correctamente');
+            resolve();
+        });
+        
+        // Timeout de seguridad
+        setTimeout(() => {
+            console.log('⏱️ Timeout de carga de tiles');
+            resolve();
+        }, 5000);
+    });
+
+    // Configurar eventos del mapa
+    map.on('click', handleMapClick);
+    
+    // Forzar actualización del tamaño varias veces
+    setTimeout(() => { if (map) map.invalidateSize(); }, 100);
+    setTimeout(() => { if (map) map.invalidateSize(); }, 300);
+    setTimeout(() => { if (map) map.invalidateSize(); }, 600);
+    setTimeout(() => { if (map) map.invalidateSize(); }, 1000);
+    
+    console.log('✅ Mapa inicializado correctamente');
+    
+    // Cargar las zonas
+    await loadZones();
+}
 
     async function loadZones() {
         try {
@@ -4762,92 +4764,87 @@ function showNotification(message, type = 'info') {
         }, 300);
 
         // Obtener coordenadas de origen y destino
-        let origenLat, origenLng, destinoLat, destinoLng;
-        
-        // Si la ruta tiene objetos origen/destino con coordenadas
-        if (routeData.origen && routeData.origen.coordenadaX && routeData.origen.coordenadaY) {
-            origenLat = routeData.origen.coordenadaY;
-            origenLng = routeData.origen.coordenadaX;
-        } else if (routeData.origen && routeData.origen.id) {
-            // Si origen tiene id pero no coordenadas, buscar por id
-            const origenId = routeData.origen.id;
-            const zonaOrigen = zonasParaRutas.find(z => z.id === origenId);
-            if (zonaOrigen && zonaOrigen.coordenadaX && zonaOrigen.coordenadaY) {
-                origenLat = zonaOrigen.coordenadaY;
-                origenLng = zonaOrigen.coordenadaX;
-            } else {
-                try {
-                    const resp = await fetch(`${API_URL}/zonas/${origenId}`);
-                    if (resp.ok) {
-                        const zona = await resp.json();
-                        origenLat = zona.coordenadaY;
-                        origenLng = zona.coordenadaX;
-                    }
-                } catch (e) {
-                    console.error('Error cargando zona origen:', e);
+    let origenLat, origenLng, destinoLat, destinoLng;
+    
+    // ✅ CORRECCIÓN: coordenadaY es LATITUD, coordenadaX es LONGITUD
+    if (routeData.origen && routeData.origen.coordenadaX && routeData.origen.coordenadaY) {
+        origenLat = routeData.origen.coordenadaY;  // ✅ Latitud
+        origenLng = routeData.origen.coordenadaX;  // ✅ Longitud
+    } else if (routeData.origen && routeData.origen.id) {
+        const origenId = routeData.origen.id;
+        const zonaOrigen = zonasParaRutas.find(z => z.id === origenId);
+        if (zonaOrigen && zonaOrigen.coordenadaX && zonaOrigen.coordenadaY) {
+            origenLat = zonaOrigen.coordenadaY;  // ✅ Latitud
+            origenLng = zonaOrigen.coordenadaX;  // ✅ Longitud
+        } else {
+            try {
+                const resp = await fetch(`${API_URL}/zonas/${origenId}`);
+                if (resp.ok) {
+                    const zona = await resp.json();
+                    origenLat = zona.coordenadaY;  // ✅ Latitud
+                    origenLng = zona.coordenadaX;  // ✅ Longitud
                 }
-            }
-        } else if (routeData.origenId) {
-            // Buscar la zona en zonasParaRutas o cargar desde API
-            const zonaOrigen = zonasParaRutas.find(z => z.id === routeData.origenId);
-            if (zonaOrigen && zonaOrigen.coordenadaX && zonaOrigen.coordenadaY) {
-                origenLat = zonaOrigen.coordenadaY;
-                origenLng = zonaOrigen.coordenadaX;
-            } else {
-                // Cargar desde API
-                try {
-                    const resp = await fetch(`${API_URL}/zonas/${routeData.origenId}`);
-                    if (resp.ok) {
-                        const zona = await resp.json();
-                        origenLat = zona.coordenadaY;
-                        origenLng = zona.coordenadaX;
-                    }
-                } catch (e) {
-                    console.error('Error cargando zona origen:', e);
-                }
+            } catch (e) {
+                console.error('Error cargando zona origen:', e);
             }
         }
-
-        if (routeData.destino && routeData.destino.coordenadaX && routeData.destino.coordenadaY) {
-            destinoLat = routeData.destino.coordenadaY;
-            destinoLng = routeData.destino.coordenadaX;
-        } else if (routeData.destino && routeData.destino.id) {
-            // Si destino tiene id pero no coordenadas, buscar por id
-            const destinoId = routeData.destino.id;
-            const zonaDestino = zonasParaRutas.find(z => z.id === destinoId);
-            if (zonaDestino && zonaDestino.coordenadaX && zonaDestino.coordenadaY) {
-                destinoLat = zonaDestino.coordenadaY;
-                destinoLng = zonaDestino.coordenadaX;
-            } else {
-                try {
-                    const resp = await fetch(`${API_URL}/zonas/${destinoId}`);
-                    if (resp.ok) {
-                        const zona = await resp.json();
-                        destinoLat = zona.coordenadaY;
-                        destinoLng = zona.coordenadaX;
-                    }
-                } catch (e) {
-                    console.error('Error cargando zona destino:', e);
+    } else if (routeData.origenId) {
+        const zonaOrigen = zonasParaRutas.find(z => z.id === routeData.origenId);
+        if (zonaOrigen && zonaOrigen.coordenadaX && zonaOrigen.coordenadaY) {
+            origenLat = zonaOrigen.coordenadaY;  // ✅ Latitud
+            origenLng = zonaOrigen.coordenadaX;  // ✅ Longitud
+        } else {
+            try {
+                const resp = await fetch(`${API_URL}/zonas/${routeData.origenId}`);
+                if (resp.ok) {
+                    const zona = await resp.json();
+                    origenLat = zona.coordenadaY;  // ✅ Latitud
+                    origenLng = zona.coordenadaX;  // ✅ Longitud
                 }
-            }
-        } else if (routeData.destinoId) {
-            const zonaDestino = zonasParaRutas.find(z => z.id === routeData.destinoId);
-            if (zonaDestino && zonaDestino.coordenadaX && zonaDestino.coordenadaY) {
-                destinoLat = zonaDestino.coordenadaY;
-                destinoLng = zonaDestino.coordenadaX;
-            } else {
-                try {
-                    const resp = await fetch(`${API_URL}/zonas/${routeData.destinoId}`);
-                    if (resp.ok) {
-                        const zona = await resp.json();
-                        destinoLat = zona.coordenadaY;
-                        destinoLng = zona.coordenadaX;
-                    }
-                } catch (e) {
-                    console.error('Error cargando zona destino:', e);
-                }
+            } catch (e) {
+                console.error('Error cargando zona origen:', e);
             }
         }
+    }
+    if (routeData.destino && routeData.destino.coordenadaX && routeData.destino.coordenadaY) {
+        destinoLat = routeData.destino.coordenadaY;  // ✅ Latitud
+        destinoLng = routeData.destino.coordenadaX;  // ✅ Longitud
+    } else if (routeData.destino && routeData.destino.id) {
+        const destinoId = routeData.destino.id;
+        const zonaDestino = zonasParaRutas.find(z => z.id === destinoId);
+        if (zonaDestino && zonaDestino.coordenadaX && zonaDestino.coordenadaY) {
+            destinoLat = zonaDestino.coordenadaY;  // ✅ Latitud
+            destinoLng = zonaDestino.coordenadaX;  // ✅ Longitud
+        } else {
+            try {
+                const resp = await fetch(`${API_URL}/zonas/${destinoId}`);
+                if (resp.ok) {
+                    const zona = await resp.json();
+                    destinoLat = zona.coordenadaY;  // ✅ Latitud
+                    destinoLng = zona.coordenadaX;  // ✅ Longitud
+                }
+            } catch (e) {
+                console.error('Error cargando zona destino:', e);
+            }
+        }
+    } else if (routeData.destinoId) {
+        const zonaDestino = zonasParaRutas.find(z => z.id === routeData.destinoId);
+        if (zonaDestino && zonaDestino.coordenadaX && zonaDestino.coordenadaY) {
+            destinoLat = zonaDestino.coordenadaY;  // ✅ Latitud
+            destinoLng = zonaDestino.coordenadaX;  // ✅ Longitud
+        } else {
+            try {
+                const resp = await fetch(`${API_URL}/zonas/${routeData.destinoId}`);
+                if (resp.ok) {
+                    const zona = await resp.json();
+                    destinoLat = zona.coordenadaY;  // ✅ Latitud
+                    destinoLng = zona.coordenadaX;  // ✅ Longitud
+                }
+            } catch (e) {
+                console.error('Error cargando zona destino:', e);
+            }
+        }
+    }
 
         if (!origenLat || !origenLng || !destinoLat || !destinoLng) {
             showNotification('No se pudieron obtener las coordenadas de la ruta', 'error');
@@ -6053,35 +6050,22 @@ async function manualUpdateTree() {
 
         // 3. Inicializar según la pestaña principal
         if (tabName === 'mapa') {
-            // Esperar a que la pestaña sea visible antes de inicializar
-            setTimeout(async () => {
-                const mapaTab = document.getElementById('mapa-tab');
-                if (mapaTab && mapaTab.classList.contains('active')) {
-                    if (!map) {
-                        await initializeMap();
-                    } else {
-                        // Invalidar tamaño múltiples veces para asegurar renderizado
-                        map.invalidateSize();
-                        setTimeout(() => {
-                            if (map) {
-                                map.invalidateSize();
-                                // Forzar redibujado de todos los tiles
-                                map.eachLayer(function(layer) {
-                                    if (layer instanceof L.TileLayer) {
-                                        layer.redraw();
-                                    }
-                                });
-                            }
-                        }, 200);
-                        setTimeout(() => {
-                            if (map) {
-                                map.invalidateSize();
-                            }
-                        }, 500);
-                    }
-                }
-            }, 150);
+    // Esperar a que la pestaña sea visible antes de inicializar
+    setTimeout(async () => {
+        const mapaTab = document.getElementById('mapa-tab');
+        if (mapaTab && mapaTab.classList.contains('active')) {
+            console.log('🗺️ Inicializando mapa en pestaña activa...');
+            
+            // Siempre recrear el mapa para asegurar que se renderice correctamente
+            if (map) {
+                map.remove();
+                map = null;
+            }
+            
+            await initializeMap();
         }
+    }, 200); // Aumentado a 200ms para dar tiempo al DOM
+}
 
         if (tabName === 'inicio') {
             loadInicioData();
@@ -6973,10 +6957,10 @@ async function calculateRoutePreview() {
     
     // Calcular distancia y tiempo
     const distancia = calcularDistanciaGeografica(
-        zonaOrigen.coordenadaX,
-        zonaOrigen.coordenadaY,
-        zonaDestino.coordenadaX,
-        zonaDestino.coordenadaY
+        zonaOrigen.coordenadaY,   // ✅ Latitud origen
+        zonaOrigen.coordenadaX,   // ✅ Longitud origen
+        zonaDestino.coordenadaY,  // ✅ Latitud destino
+        zonaDestino.coordenadaX   // ✅ Longitud destino
     );
     
     const tiempo = calcularTiempoEstimado(distancia, tipoRuta);
@@ -7110,10 +7094,10 @@ let rutasPanelInicializado = false;
                 
                 // Calcular distancia y tiempo automáticamente
                 const distancia = calcularDistanciaGeografica(
-                    zonaOrigen.coordenadaX,
-                    zonaOrigen.coordenadaY,
-                    zonaDestino.coordenadaX,
-                    zonaDestino.coordenadaY
+                    zonaOrigen.coordenadaY,   // ✅ Latitud origen
+                    zonaOrigen.coordenadaX,   // ✅ Longitud origen
+                    zonaDestino.coordenadaY,  // ✅ Latitud destino
+                    zonaDestino.coordenadaX   // ✅ Longitud destino
                 );
                 
                 const tiempoEstimado = calcularTiempoEstimado(distancia, tipoRuta);
@@ -8450,6 +8434,32 @@ function exportarReporte() {
     window.URL.revokeObjectURL(url);
 
     showNotification('✅ Reporte exportado correctamente', 'success');
+}
+
+async function reiniciarMapa() {
+    console.log('🔄 Reiniciando mapa manualmente...');
+    showNotification('Reiniciando mapa...', 'info');
+    
+    if (map) {
+        map.remove();
+        map = null;
+    }
+    
+    await initializeMap();
+    showNotification('✅ Mapa reiniciado correctamente', 'success');
+}
+
+async function verificarConectividadMapa() {
+    try {
+        const testUrl = 'https://tile.openstreetmap.org/0/0/0.png';
+        const response = await fetch(testUrl, { mode: 'no-cors' });
+        console.log('✅ Conectividad con OpenStreetMap OK');
+        return true;
+    } catch (error) {
+        console.error('❌ No se puede conectar con OpenStreetMap:', error);
+        showNotification('⚠️ Problemas de conectividad con el servicio de mapas', 'warning');
+        return false;
+    }
 }
 </script>
 </body>
