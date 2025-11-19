@@ -1,7 +1,7 @@
 package co.edu.uniquindio.GestionRiesgos.Model;
 
-import co.edu.uniquindio.Gestion.de.Riesgos.Enums.NivelUrgencia;
-import co.edu.uniquindio.Gestion.de.Riesgos.Estructuras.Ruta;
+import co.edu.uniquindio.GestionRiesgos.Enums.NivelUrgencia;
+import co.edu.uniquindio.GestionRiesgos.Estructuras.Ruta;
 
 import java.time.LocalDateTime;
 import java.util.Objects;

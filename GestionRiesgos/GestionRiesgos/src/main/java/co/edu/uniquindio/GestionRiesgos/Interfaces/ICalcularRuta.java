@@ -1,7 +1,9 @@
-package Interfaces;
+package co.edu.uniquindio.GestionRiesgos.Interfaces;
 
-import co.edu.uniquindio.Gestion.de.Riesgos.Model.Zona;
-import co.edu.uniquindio.Gestion.de.Riesgos.Estructuras.Ruta;
+import co.edu.uniquindio.GestionRiesgos.Interfaces.ICalcularRuta;
+import co.edu.uniquindio.GestionRiesgos.Model.Zona;
+import co.edu.uniquindio.GestionRiesgos.Estructuras.Ruta;
+
 import java.util.List;
 
 /**

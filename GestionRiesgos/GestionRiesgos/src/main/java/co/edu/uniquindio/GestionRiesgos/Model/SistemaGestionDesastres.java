@@ -1,9 +1,9 @@
 package co.edu.uniquindio.GestionRiesgos.Model;
 
-import co.edu.uniquindio.Gestion.de.Riesgos.Enums.NivelUrgencia;
-import co.edu.uniquindio.Gestion.de.Riesgos.Enums.TipoRecurso;
-import co.edu.uniquindio.Gestion.de.Riesgos.Enums.TipoRuta;
-import co.edu.uniquindio.Gestion.de.Riesgos.Estructuras.*;
+import co.edu.uniquindio.GestionRiesgos.Enums.NivelUrgencia;
+import co.edu.uniquindio.GestionRiesgos.Enums.TipoRecurso;
+import co.edu.uniquindio.GestionRiesgos.Enums.TipoRuta;
+import co.edu.uniquindio.GestionRiesgos.Estructuras.*;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -1,6 +1,6 @@
 package co.edu.uniquindio.GestionRiesgos.Model;
 
-import co.edu.uniquindio.Gestion.de.Riesgos.Enums.Rol;
+import co.edu.uniquindio.GestionRiesgos.Enums.Rol;
 
 import java.util.ArrayList;
 import java.util.List;

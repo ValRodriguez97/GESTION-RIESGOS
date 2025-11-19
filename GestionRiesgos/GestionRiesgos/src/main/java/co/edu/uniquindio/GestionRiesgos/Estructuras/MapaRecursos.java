@@ -1,7 +1,7 @@
 package co.edu.uniquindio.GestionRiesgos.Estructuras;
 
-import co.edu.uniquindio.Gestion.de.Riesgos.Model.Recurso;
-import co.edu.uniquindio.Gestion.de.Riesgos.Enums.TipoRecurso;
+import co.edu.uniquindio.GestionRiesgos.Model.Recurso;
+import co.edu.uniquindio.GestionRiesgos.Enums.TipoRecurso;
 
 import java.util.*;
 import java.util.stream.Collectors;

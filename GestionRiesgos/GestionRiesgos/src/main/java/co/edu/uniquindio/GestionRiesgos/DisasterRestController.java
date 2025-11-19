@@ -24,20 +24,20 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import co.edu.uniquindio.Gestion.de.Riesgos.Enums.NivelUrgencia;
-import co.edu.uniquindio.Gestion.de.Riesgos.Enums.TipoRecurso;
-import co.edu.uniquindio.Gestion.de.Riesgos.Enums.TipoRuta;
-import co.edu.uniquindio.Gestion.de.Riesgos.Estructuras.MapaRecursos;
-import co.edu.uniquindio.Gestion.de.Riesgos.Estructuras.Nodo;
-import co.edu.uniquindio.Gestion.de.Riesgos.Estructuras.Ruta;
-import co.edu.uniquindio.Gestion.de.Riesgos.Model.Administrador;
-import co.edu.uniquindio.Gestion.de.Riesgos.Model.EquipoRescate;
-import co.edu.uniquindio.Gestion.de.Riesgos.Model.Evacuacion;
-import co.edu.uniquindio.Gestion.de.Riesgos.Model.OperadorEmergencia;
-import co.edu.uniquindio.Gestion.de.Riesgos.Model.Recurso;
-import co.edu.uniquindio.Gestion.de.Riesgos.Model.SistemaGestionDesastres;
-import co.edu.uniquindio.Gestion.de.Riesgos.Model.Usuario;
-import co.edu.uniquindio.Gestion.de.Riesgos.Model.Zona;
+import co.edu.uniquindio.GestionRiesgos.Enums.NivelUrgencia;
+import co.edu.uniquindio.GestionRiesgos.Enums.TipoRecurso;
+import co.edu.uniquindio.GestionRiesgos.Enums.TipoRuta;
+import co.edu.uniquindio.GestionRiesgos.Estructuras.MapaRecursos;
+import co.edu.uniquindio.GestionRiesgos.Estructuras.Nodo;
+import co.edu.uniquindio.GestionRiesgos.Estructuras.Ruta;
+import co.edu.uniquindio.GestionRiesgos.Model.Administrador;
+import co.edu.uniquindio.GestionRiesgos.Model.EquipoRescate;
+import co.edu.uniquindio.GestionRiesgos.Model.Evacuacion;
+import co.edu.uniquindio.GestionRiesgos.Model.OperadorEmergencia;
+import co.edu.uniquindio.GestionRiesgos.Model.Recurso;
+import co.edu.uniquindio.GestionRiesgos.Model.SistemaGestionDesastres;
+import co.edu.uniquindio.GestionRiesgos.Model.Usuario;
+import co.edu.uniquindio.GestionRiesgos.Model.Zona;
 
 @RestController
 @RequestMapping("/api")
