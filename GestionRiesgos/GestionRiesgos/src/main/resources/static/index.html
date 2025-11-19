@@ -2259,6 +2259,24 @@
                         <i class="fas fa-sync-alt"></i> Actualizar
                     </button>
                 </div>
+                
+                <!-- Panel de Control de Rutas Visualizadas -->
+                <div class="section-container" style="margin-bottom: 20px; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
+                    <div class="section-header" style="margin-bottom: 12px;">
+                        <h3 style="font-size: 1.1rem; color: #2d3748;">
+                            <i class="fas fa-map-marked-alt"></i> Rutas Visualizadas en el Mapa
+                        </h3>
+                        <button class="btn-action" onclick="cargarTodasLasRutasEnMapa()" style="padding: 6px 12px; font-size: 0.9rem;">
+                            <i class="fas fa-eye"></i> Cargar Todas
+                        </button>
+                    </div>
+                    <div id="rutasVisualizadasList" style="max-height: 300px; overflow-y: auto;">
+                        <p style="color: #718096; font-style: italic; text-align: center; padding: 20px;">
+                            <i class="fas fa-info-circle"></i> No hay rutas visualizadas en el mapa
+                        </p>
+                    </div>
+                </div>
+                
                 <div id="routesList">
                     <div class="loading-state">
                         <i class="fas fa-spinner fa-spin"></i> Cargando rutas...
@@ -2762,6 +2780,11 @@
     let zoneCircles = [];
     let currentRoutingControl = null;
     let tempCircle = null;
+    
+    // Sistema de gestión de rutas visualizadas en el mapa
+    let rutasVisualizadas = []; // Array de objetos {id, ruta, polyline, markers, visible}
+    let coloresRutas = ['#e53e3e', '#3182ce', '#38a169', '#d69e2e', '#805ad5', '#dd6b20', '#c53030', '#2c5282'];
+    let indiceColor = 0;
     let treeData = {
         id: "root",
         name: "Distribución Central",
@@ -6577,6 +6600,20 @@ let rutasPanelInicializado = false;
                             `✅ Ruta creada: ${distancia.toFixed(2)} km en ${tiempoEstimado.toFixed(2)} horas`, 
                             'success'
                         );
+                        
+                        // Visualizar la ruta en el mapa
+                        const rutaCreada = {
+                            id: routeData.id,
+                            origenId: routeData.origenId,
+                            destinoId: routeData.destinoId,
+                            distancia: routeData.distancia,
+                            tiempoEstimado: routeData.tiempoEstimado,
+                            tipo: routeData.tipo,
+                            origen: { id: zonaOrigen.id, nombre: zonaOrigen.nombre, coordenadaX: zonaOrigen.coordenadaX, coordenadaY: zonaOrigen.coordenadaY },
+                            destino: { id: zonaDestino.id, nombre: zonaDestino.nombre, coordenadaX: zonaDestino.coordenadaX, coordenadaY: zonaDestino.coordenadaY }
+                        };
+                        visualizarRutaEnMapa(rutaCreada);
+                        
                         // Solo resetear el formulario cuando la creación es exitosa
                         routeForm.reset();
                         document.getElementById('routePreview').style.display = 'none';
@@ -6814,6 +6851,7 @@ async function loadAllRoutes() {
         rutas.forEach(r => {
             const card = document.createElement('div');
             card.className = 'route-card';
+            const yaVisualizada = rutasVisualizadas.find(rv => rv.id === r.id);
             card.innerHTML = `
                 <div class="route-header">
                     <h4><i class="fas fa-route"></i> ${r.id}</h4>
@@ -6825,9 +6863,26 @@ async function loadAllRoutes() {
                     <p><i class="fas fa-road"></i> <strong>Distancia:</strong> ${r.distancia} km</p>
                     <p><i class="fas fa-clock"></i> <strong>Tiempo:</strong> ${r.tiempoEstimado} hrs</p>
                 </div>
+                <div style="margin-top: 10px; display: flex; gap: 8px;">
+                    ${yaVisualizada ? `
+                        <button onclick="toggleRutaEnMapa('${r.id}')" class="btn-action" style="flex: 1; padding: 8px; font-size: 0.9rem; background: ${yaVisualizada.visible ? '#48bb78' : '#cbd5e0'};">
+                            <i class="fas fa-eye${yaVisualizada.visible ? '' : '-slash'}"></i> ${yaVisualizada.visible ? 'Ocultar' : 'Mostrar'}
+                        </button>
+                        <button onclick="eliminarRutaDelMapa('${r.id}')" class="btn-action" style="flex: 1; padding: 8px; font-size: 0.9rem; background: #e53e3e;">
+                            <i class="fas fa-trash"></i> Eliminar
+                        </button>
+                    ` : `
+                        <button onclick="visualizarRutaIndividual('${r.id}')" class="btn-action" style="flex: 1; padding: 8px; font-size: 0.9rem; background: #4299e1;">
+                            <i class="fas fa-map-marked-alt"></i> Ver en Mapa
+                        </button>
+                    `}
+                </div>
             `;
             container.appendChild(card);
         });
+        
+        // Actualizar también el panel de rutas visualizadas
+        actualizarPanelRutasVisualizadas();
     } catch (err) {
         console.error('Error cargando rutas:', err);
         container.innerHTML = `
@@ -6835,6 +6890,359 @@ async function loadAllRoutes() {
                 <i class="fas fa-exclamation-triangle"></i>
                 <h3>Error cargando rutas</h3>
             </div>`;
+    }
+}
+
+// ============================================
+// FUNCIONES DE VISUALIZACIÓN DE RUTAS EN MAPA
+// ============================================
+
+/**
+ * Visualiza una ruta en el mapa como una línea entre origen y destino
+ */
+function visualizarRutaEnMapa(ruta) {
+    if (!map) {
+        console.error('Mapa no inicializado');
+        return;
+    }
+    
+    // Verificar si la ruta ya está visualizada
+    if (rutasVisualizadas.find(r => r.id === ruta.id)) {
+        console.log(`Ruta ${ruta.id} ya está visualizada`);
+        return;
+    }
+    
+    // Obtener coordenadas de origen y destino
+    let origenLat, origenLng, destinoLat, destinoLng;
+    
+    if (ruta.origen && ruta.origen.coordenadaX && ruta.origen.coordenadaY) {
+        origenLat = ruta.origen.coordenadaX;
+        origenLng = ruta.origen.coordenadaY;
+    } else {
+        // Buscar en zonasParaRutas
+        const zonaOrigen = zonasParaRutas.find(z => z.id === ruta.origenId || z.id === ruta.origen?.id);
+        if (!zonaOrigen || !zonaOrigen.coordenadaX || !zonaOrigen.coordenadaY) {
+            console.error(`No se encontraron coordenadas para zona origen: ${ruta.origenId}`);
+            return;
+        }
+        origenLat = zonaOrigen.coordenadaX;
+        origenLng = zonaOrigen.coordenadaY;
+    }
+    
+    if (ruta.destino && ruta.destino.coordenadaX && ruta.destino.coordenadaY) {
+        destinoLat = ruta.destino.coordenadaX;
+        destinoLng = ruta.destino.coordenadaY;
+    } else {
+        // Buscar en zonasParaRutas
+        const zonaDestino = zonasParaRutas.find(z => z.id === ruta.destinoId || z.id === ruta.destino?.id);
+        if (!zonaDestino || !zonaDestino.coordenadaX || !zonaDestino.coordenadaY) {
+            console.error(`No se encontraron coordenadas para zona destino: ${ruta.destinoId}`);
+            return;
+        }
+        destinoLat = zonaDestino.coordenadaX;
+        destinoLng = zonaDestino.coordenadaY;
+    }
+    
+    // Obtener color para la ruta
+    const color = coloresRutas[indiceColor % coloresRutas.length];
+    indiceColor++;
+    
+    // Crear polilínea (línea entre origen y destino)
+    const polyline = L.polyline(
+        [[origenLat, origenLng], [destinoLat, destinoLng]],
+        {
+            color: color,
+            weight: 5,
+            opacity: 0.7,
+            dashArray: '10, 5'
+        }
+    ).addTo(map);
+    
+    // Agregar popup a la línea
+    const popupContent = `
+        <div style="min-width: 200px;">
+            <h4 style="margin: 0 0 10px 0; color: #2d3748;">
+                <i class="fas fa-route" style="color: ${color};"></i> ${ruta.id}
+            </h4>
+            <p style="margin: 5px 0;"><strong>Tipo:</strong> ${ruta.tipo || 'N/A'}</p>
+            <p style="margin: 5px 0;"><strong>Distancia:</strong> ${ruta.distancia} km</p>
+            <p style="margin: 5px 0;"><strong>Tiempo:</strong> ${ruta.tiempoEstimado} hrs</p>
+            <p style="margin: 5px 0;"><strong>Origen:</strong> ${ruta.origen?.nombre || ruta.origenId}</p>
+            <p style="margin: 5px 0;"><strong>Destino:</strong> ${ruta.destino?.nombre || ruta.destinoId}</p>
+        </div>
+    `;
+    polyline.bindPopup(popupContent);
+    
+    // Crear marcadores en origen y destino
+    const markerOrigen = L.marker([origenLat, origenLng], {
+        icon: L.divIcon({
+            html: `<div style="background: ${color}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>`,
+            className: '',
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        })
+    }).addTo(map).bindPopup(`<strong>Origen:</strong> ${ruta.origen?.nombre || ruta.origenId}`);
+    
+    const markerDestino = L.marker([destinoLat, destinoLng], {
+        icon: L.divIcon({
+            html: `<div style="background: ${color}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>`,
+            className: '',
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        })
+    }).addTo(map).bindPopup(`<strong>Destino:</strong> ${ruta.destino?.nombre || ruta.destinoId}`);
+    
+    // Guardar la ruta visualizada
+    const rutaVisualizada = {
+        id: ruta.id,
+        ruta: ruta,
+        polyline: polyline,
+        markers: [markerOrigen, markerDestino],
+        visible: true,
+        color: color
+    };
+    
+    rutasVisualizadas.push(rutaVisualizada);
+    
+    // Actualizar el panel de control
+    actualizarPanelRutasVisualizadas();
+    
+    console.log(`✅ Ruta ${ruta.id} visualizada en el mapa`);
+}
+
+/**
+ * Elimina una ruta del mapa
+ */
+async function eliminarRutaDelMapa(rutaId) {
+    const index = rutasVisualizadas.findIndex(r => r.id === rutaId);
+    if (index === -1) {
+        console.log(`Ruta ${rutaId} no está visualizada`);
+        return;
+    }
+    
+    const rutaVisualizada = rutasVisualizadas[index];
+    
+    // Remover del mapa
+    map.removeLayer(rutaVisualizada.polyline);
+    rutaVisualizada.markers.forEach(marker => map.removeLayer(marker));
+    
+    // Remover del array
+    rutasVisualizadas.splice(index, 1);
+    
+    // Actualizar los paneles
+    actualizarPanelRutasVisualizadas();
+    await loadAllRoutes(); // Actualizar la lista de rutas para cambiar los botones
+    
+    console.log(`✅ Ruta ${rutaId} eliminada del mapa`);
+}
+
+/**
+ * Muestra u oculta una ruta en el mapa
+ */
+async function toggleRutaEnMapa(rutaId) {
+    const rutaVisualizada = rutasVisualizadas.find(r => r.id === rutaId);
+    if (!rutaVisualizada) {
+        console.log(`Ruta ${rutaId} no está visualizada`);
+        return;
+    }
+    
+    rutaVisualizada.visible = !rutaVisualizada.visible;
+    
+    if (rutaVisualizada.visible) {
+        map.addLayer(rutaVisualizada.polyline);
+        rutaVisualizada.markers.forEach(marker => map.addLayer(marker));
+    } else {
+        map.removeLayer(rutaVisualizada.polyline);
+        rutaVisualizada.markers.forEach(marker => map.removeLayer(marker));
+    }
+    
+    // Actualizar los paneles
+    actualizarPanelRutasVisualizadas();
+    await loadAllRoutes(); // Actualizar la lista de rutas para cambiar los botones
+}
+
+/**
+ * Actualiza el panel de control de rutas visualizadas
+ */
+function actualizarPanelRutasVisualizadas() {
+    const container = document.getElementById('rutasVisualizadasList');
+    if (!container) return;
+    
+    if (rutasVisualizadas.length === 0) {
+        container.innerHTML = `
+            <p style="color: #718096; font-style: italic; text-align: center; padding: 20px;">
+                <i class="fas fa-info-circle"></i> No hay rutas visualizadas en el mapa
+            </p>`;
+        return;
+    }
+    
+    container.innerHTML = '';
+    rutasVisualizadas.forEach(rutaVis => {
+        const card = document.createElement('div');
+        card.style.cssText = 'background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;';
+        
+        const infoDiv = document.createElement('div');
+        infoDiv.style.cssText = 'flex: 1;';
+        infoDiv.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                <div style="width: 20px; height: 20px; background: ${rutaVis.color}; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+                <strong style="color: #2d3748;">${rutaVis.ruta.id}</strong>
+                <span style="font-size: 0.85rem; color: #718096;">${rutaVis.ruta.tipo || ''}</span>
+            </div>
+            <div style="font-size: 0.85rem; color: #4a5568;">
+                ${rutaVis.ruta.origen?.nombre || rutaVis.ruta.origenId} → ${rutaVis.ruta.destino?.nombre || rutaVis.ruta.destinoId}
+            </div>
+            <div style="font-size: 0.8rem; color: #718096; margin-top: 3px;">
+                ${rutaVis.ruta.distancia} km • ${rutaVis.ruta.tiempoEstimado} hrs
+            </div>
+        `;
+        
+        const actionsDiv = document.createElement('div');
+        actionsDiv.style.cssText = 'display: flex; gap: 5px;';
+        actionsDiv.innerHTML = `
+            <button onclick="toggleRutaEnMapa('${rutaVis.id}')" 
+                    style="padding: 6px 10px; background: ${rutaVis.visible ? '#48bb78' : '#cbd5e0'}; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;"
+                    title="${rutaVis.visible ? 'Ocultar' : 'Mostrar'}">
+                <i class="fas fa-eye${rutaVis.visible ? '' : '-slash'}"></i>
+            </button>
+            <button onclick="eliminarRutaDelMapa('${rutaVis.id}')" 
+                    style="padding: 6px 10px; background: #e53e3e; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;"
+                    title="Eliminar">
+                <i class="fas fa-trash"></i>
+            </button>
+        `;
+        
+        card.appendChild(infoDiv);
+        card.appendChild(actionsDiv);
+        container.appendChild(card);
+    });
+}
+
+/**
+ * Visualiza una ruta individual desde la lista de rutas
+ */
+async function visualizarRutaIndividual(rutaId) {
+    try {
+        // Cargar zonas si no están cargadas
+        if (!zonasParaRutas || zonasParaRutas.length === 0) {
+            await loadZonasForRutas();
+        }
+        
+        // Buscar la ruta en las rutas cargadas
+        const resp = await fetch(`${API_URL}/rutas`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        
+        const rutas = await resp.json();
+        const ruta = rutas.find(r => r.id === rutaId);
+        
+        if (!ruta) {
+            showNotification('Ruta no encontrada', 'error');
+            return;
+        }
+        
+        // Verificar si ya está visualizada
+        if (rutasVisualizadas.find(r => r.id === rutaId)) {
+            showNotification('Esta ruta ya está visualizada en el mapa', 'info');
+            return;
+        }
+        
+        // Buscar coordenadas de origen y destino
+        const zonaOrigen = zonasParaRutas.find(z => z.id === ruta.origen?.id || z.id === ruta.origenId);
+        const zonaDestino = zonasParaRutas.find(z => z.id === ruta.destino?.id || z.id === ruta.destinoId);
+        
+        if (!zonaOrigen || !zonaDestino) {
+            showNotification('No se encontraron las zonas de origen o destino', 'error');
+            return;
+        }
+        
+        if (!zonaOrigen.coordenadaX || !zonaOrigen.coordenadaY || 
+            !zonaDestino.coordenadaX || !zonaDestino.coordenadaY) {
+            showNotification('Las zonas no tienen coordenadas válidas', 'error');
+            return;
+        }
+        
+        const rutaCompleta = {
+            ...ruta,
+            origen: {
+                ...ruta.origen,
+                coordenadaX: zonaOrigen.coordenadaX,
+                coordenadaY: zonaOrigen.coordenadaY
+            },
+            destino: {
+                ...ruta.destino,
+                coordenadaX: zonaDestino.coordenadaX,
+                coordenadaY: zonaDestino.coordenadaY
+            }
+        };
+        
+        visualizarRutaEnMapa(rutaCompleta);
+        showNotification(`Ruta ${rutaId} agregada al mapa`, 'success');
+        
+        // Recargar la lista para actualizar los botones
+        await loadAllRoutes();
+    } catch (err) {
+        console.error('Error visualizando ruta individual:', err);
+        showNotification('Error al visualizar la ruta', 'error');
+    }
+}
+
+/**
+ * Carga todas las rutas del sistema y las visualiza en el mapa
+ */
+async function cargarTodasLasRutasEnMapa() {
+    try {
+        // Cargar zonas si no están cargadas
+        if (!zonasParaRutas || zonasParaRutas.length === 0) {
+            await loadZonasForRutas();
+        }
+        
+        const resp = await fetch(`${API_URL}/rutas`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        
+        const rutas = await resp.json();
+        
+        if (!Array.isArray(rutas) || rutas.length === 0) {
+            showNotification('No hay rutas para visualizar', 'info');
+            return;
+        }
+        
+        // Visualizar cada ruta que no esté ya visualizada
+        let rutasAgregadas = 0;
+        for (const ruta of rutas) {
+            if (!rutasVisualizadas.find(r => r.id === ruta.id)) {
+                // Buscar coordenadas de origen y destino
+                const zonaOrigen = zonasParaRutas.find(z => z.id === ruta.origen?.id || z.id === ruta.origenId);
+                const zonaDestino = zonasParaRutas.find(z => z.id === ruta.destino?.id || z.id === ruta.destinoId);
+                
+                if (zonaOrigen && zonaDestino && zonaOrigen.coordenadaX && zonaOrigen.coordenadaY && 
+                    zonaDestino.coordenadaX && zonaDestino.coordenadaY) {
+                    const rutaCompleta = {
+                        ...ruta,
+                        origen: {
+                            ...ruta.origen,
+                            coordenadaX: zonaOrigen.coordenadaX,
+                            coordenadaY: zonaOrigen.coordenadaY
+                        },
+                        destino: {
+                            ...ruta.destino,
+                            coordenadaX: zonaDestino.coordenadaX,
+                            coordenadaY: zonaDestino.coordenadaY
+                        }
+                    };
+                    visualizarRutaEnMapa(rutaCompleta);
+                    rutasAgregadas++;
+                }
+            }
+        }
+        
+        if (rutasAgregadas > 0) {
+            showNotification(`${rutasAgregadas} ruta(s) agregada(s) al mapa`, 'success');
+        } else {
+            showNotification('Todas las rutas ya están visualizadas', 'info');
+        }
+    } catch (err) {
+        console.error('Error cargando rutas al mapa:', err);
+        showNotification('Error al cargar rutas al mapa', 'error');
     }
 }
 
