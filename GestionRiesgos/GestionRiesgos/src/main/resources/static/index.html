@@ -230,10 +230,24 @@
         .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
 
         #map {
-            height: 600px; border-radius: 8px;
+            height: 600px !important;
+            min-height: 600px !important;
+            width: 100% !important;
+            border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             border: 1px solid #e1e8ed;
             margin-bottom: 20px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Asegurar que los tiles del mapa sean visibles */
+        .leaflet-container {
+            background-color: #f4f4f4 !important;
+        }
+        
+        .leaflet-tile-container img {
+            max-width: none !important;
         }
         .map-controls {
             background: white; padding: 24px; border-radius: 8px;
@@ -339,10 +353,20 @@
             color: #666;
         }
 
+        /* Estilo original para el panel de routing manual */
         .leaflet-routing-container {
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        
+        /* Ocultar paneles de routing automático - se aplicará dinámicamente */
+        .route-auto-hidden .leaflet-routing-container,
+        .route-auto-hidden .leaflet-routing-instructions,
+        .route-auto-hidden .leaflet-routing-alt {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
         }
         /* ===================================
    SISTEMA DE PESTAÑAS
@@ -2078,7 +2102,7 @@
                     </div>
                 </form>
             </div>
-            
+
             <div class="section-container">
                 <div class="section-header">
                     <h2><i class="fas fa-user-shield"></i> Equipos Existentes</h2>
@@ -2258,6 +2282,22 @@
                     <button class="btn-refresh" onclick="loadAllRoutes()">
                         <i class="fas fa-sync-alt"></i> Actualizar
                     </button>
+                </div>
+                <div style="margin-bottom: 20px; padding: 15px; background: #f7fafc; border-radius: 8px; border: 1px solid #e1e8ed;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #2d3748;">
+                        <i class="fas fa-map-marked-alt"></i> Visualizar Ruta en el Mapa
+                    </label>
+                    <div style="display: flex; gap: 10px;">
+                        <select id="routeSelector" onchange="onRouteSelectorChange()" style="flex: 1; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 14px;">
+                            <option value="">Selecciona una ruta para visualizar...</option>
+                        </select>
+                        <button class="btn-action" onclick="clearAllRoutesFromMap()" style="background: #e53e3e;">
+                            <i class="fas fa-trash"></i> Limpiar Todas
+                        </button>
+                    </div>
+                    <p style="margin-top: 8px; font-size: 12px; color: #718096;">
+                        <i class="fas fa-info-circle"></i> Selecciona una ruta del menú desplegable para verla en el mapa interactivo
+                    </p>
                 </div>
                 <div id="routesList">
                     <div class="loading-state">
@@ -2595,7 +2635,7 @@
                                 </span>
                             </p>
                         </div>
-    
+
                         <form id="treeNodeForm" class="two-column" style="display: none">
                             <div class="input-group">
                                 <label><i class="fas fa-tag"></i> ID del Nodo *</label>
@@ -2762,6 +2802,9 @@
     let zoneCircles = [];
     let currentRoutingControl = null;
     let tempCircle = null;
+    // Variables para rutas visualizadas en el mapa
+    let displayedRoutes = []; // Array de objetos {routeId, routingControl, markers}
+    let allRoutesData = []; // Almacena todas las rutas cargadas
     let treeData = {
         id: "root",
         name: "Distribución Central",
@@ -2861,6 +2904,58 @@ function destroyCharts() {
         }
     }
 
+    // Función para configurar las pestañas visibles según el rol del usuario
+    function configureTabsByRole() {
+        if (!currentUser) {
+            // Si no hay usuario, mostrar todas las pestañas (estado inicial)
+            document.querySelectorAll('.tabs-header .tab-button').forEach(button => {
+                button.style.display = 'flex';
+            });
+            return;
+        }
+
+        const rol = currentUser.rol || '';
+        const tabButtons = document.querySelectorAll('.tabs-header .tab-button');
+        let activeTabHidden = false;
+        
+        tabButtons.forEach(button => {
+            const tabName = button.getAttribute('data-tab');
+            let shouldShow = false;
+
+            if (rol === 'Administrador') {
+                // Administrador ve todas las pestañas:
+                // - Panel de Administración (gestionar recursos, asignar recursos)
+                // - Panel de Rutas (definir rutas de transporte)
+                // - Estadísticas (generar informes)
+                // - Árbol de Distribución (visualizar distribución)
+                // - Mapa Interactivo (visualizar zonas)
+                // - Inicio (panel de control)
+                shouldShow = true;
+            } else if (rol === 'Operador de Emergencia') {
+                // Operador de emergencia solo ve:
+                // - Inicio (panel de control)
+                // - Panel de Rutas (priorizar evacuaciones, coordinar distribución)
+                // - Mapa Interactivo (monitorear ubicaciones afectadas y actualizar situación)
+                shouldShow = tabName === 'inicio' || tabName === 'rutas' || tabName === 'mapa';
+            }
+
+            if (shouldShow) {
+                button.style.display = 'flex';
+            } else {
+                button.style.display = 'none';
+                // Verificar si la pestaña oculta estaba activa
+                if (button.classList.contains('active')) {
+                    activeTabHidden = true;
+                }
+            }
+        });
+
+        // Si la pestaña activa fue ocultada, cambiar a inicio
+        if (activeTabHidden) {
+            switchTab('inicio');
+        }
+    }
+
     // Restaurar sesión desde localStorage al cargar la página
     window.addEventListener('load', () => {
         const savedUser = localStorage.getItem('currentUser');
@@ -2871,6 +2966,8 @@ function destroyCharts() {
                 document.getElementById('loginPage').style.display = 'none';
                 document.getElementById('dashboard').style.display = 'block';
                 document.getElementById('userInfo').innerHTML = `<i class="fas fa-user"></i> ${currentUser.nombre}`;
+                // Configurar pestañas según el rol
+                configureTabsByRole();
                 // Cargar datos del panel de inicio
                 if (typeof loadInicioData === 'function') {
                     loadInicioData();
@@ -2915,6 +3012,9 @@ if (data.success) {
         document.getElementById('loginPage').style.display = 'none';
         document.getElementById('dashboard').style.display = 'block';
         document.getElementById('userInfo').innerHTML = `<i class="fas fa-user"></i> ${data.user.nombre}`;
+
+        // Configurar pestañas según el rol del usuario
+        configureTabsByRole();
 
         // cargar datos del panel de inicio
         loadInicioData();
@@ -3117,7 +3217,8 @@ if (data.success) {
 
         // ---------- (b) Recursos por tipo ----------
         const ctxR = document.getElementById("chartRecursosTipo");
-        if (ctxR) {            chartRecursosTipoChart = new Chart(ctxR, {
+        if (ctxR) {
+            chartRecursosTipoChart = new Chart(ctxR, {
                 type: "bar",
                 data: {
                     labels: Object.keys(recursosPorTipo),
@@ -3637,7 +3738,7 @@ function showNotification(message, type = 'info') {
                     <div class="zone-urgency ${urgencyClass}">${urgencia}</div>
                 </div>
                 <div class="zone-info">
-                                    <div class="zone-info-item">
+                    <div class="zone-info-item">
                         <i class="fas fa-id-card"></i>
                         <span><strong>ID:</strong> ${z.id ?? z.codigo ?? '-'}</span>
                     </div>
@@ -4156,7 +4257,7 @@ function showNotification(message, type = 'info') {
                             <div class="ruta-recursos-header">
                                 <h5><i class="fas fa-route"></i> Ruta ${ruta.id || rutaId}</h5>
                                 <span class="ruta-info">${ruta.origenId || '?'} → ${ruta.destinoId || '?'}</span>
-                            </div>               
+                            </div>
                             <div class="ruta-recursos-list">`;
                     
                     data.recursos.forEach(recurso => {
@@ -4205,16 +4306,92 @@ function showNotification(message, type = 'info') {
 
     // Funciones del Mapa
     async function initializeMap() {
-        if (!map) {
-            map = L.map('map').setView([4.5389, -75.6678], 13);
-
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
-            }).addTo(map);
-
-            map.on('click', handleMapClick);
-            await loadZones();
+        const mapElement = document.getElementById('map');
+        if (!mapElement) {
+            console.error('El elemento del mapa no existe');
+            return;
         }
+        
+        // Si el mapa ya existe, solo invalidar tamaño
+        if (map) {
+            // Esperar a que el contenedor sea visible
+            setTimeout(() => {
+                if (map) {
+                    map.invalidateSize();
+                    // Forzar actualización de tiles
+                    map.eachLayer(function(layer) {
+                        if (layer instanceof L.TileLayer) {
+                            layer.redraw();
+                        }
+                    });
+                }
+            }, 200);
+            return;
+        }
+        
+        // Asegurar que el contenedor tenga altura
+        if (mapElement.offsetHeight === 0) {
+            mapElement.style.height = '600px';
+            mapElement.style.minHeight = '600px';
+        }
+        
+        // Crear el mapa
+        map = L.map('map', {
+            center: [4.5389, -75.6678],
+            zoom: 13,
+            zoomControl: true,
+            preferCanvas: false
+        });
+
+        // Agregar tiles de OpenStreetMap con configuración mejorada
+        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19,
+            minZoom: 3,
+            tileSize: 256,
+            zoomOffset: 0,
+            errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' // Tile de error transparente
+        });
+        
+        osmLayer.addTo(map);
+        
+        // Escuchar cuando los tiles se carguen
+        osmLayer.on('tileload', function() {
+            console.log('Tile cargado correctamente');
+        });
+        
+        osmLayer.on('tileerror', function(error, tile) {
+            console.warn('Error cargando tile:', error, tile);
+        });
+
+        map.on('click', handleMapClick);
+        
+        // Invalidar tamaño múltiples veces para asegurar renderizado
+        setTimeout(() => {
+            if (map) {
+                map.invalidateSize();
+            }
+        }, 100);
+        
+        setTimeout(() => {
+            if (map) {
+                map.invalidateSize();
+                // Forzar redibujado de tiles
+                map.eachLayer(function(layer) {
+                    if (layer instanceof L.TileLayer) {
+                        layer.redraw();
+                    }
+                });
+            }
+        }, 300);
+        
+        setTimeout(() => {
+            if (map) {
+                map.invalidateSize();
+            }
+        }, 600);
+        
+        await loadZones();
     }
 
     async function loadZones() {
@@ -4523,6 +4700,446 @@ function showNotification(message, type = 'info') {
         resetMode();
     }
 
+    // Función para mostrar una ruta guardada en el mapa
+    async function showRouteOnMap(routeId, routeData) {
+        // Asegurar que el mapa esté inicializado
+        if (!map) {
+            console.log('Inicializando mapa...');
+            await initializeMap();
+            // Esperar un poco para que los tiles se carguen
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+        // Verificar que el mapa esté completamente cargado
+        if (!map || !map.getContainer()) {
+            console.error('El mapa no se pudo inicializar');
+            showNotification('Error: El mapa no está disponible. Por favor, recarga la página.', 'error');
+            return;
+        }
+        
+        // Asegurar que los tiles estén cargados
+        let hasTiles = false;
+        let tileLayer = null;
+        map.eachLayer(function(layer) {
+            if (layer instanceof L.TileLayer) {
+                hasTiles = true;
+                tileLayer = layer;
+            }
+        });
+        
+        if (!hasTiles) {
+            console.log('Agregando tiles al mapa...');
+            tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19,
+                minZoom: 3,
+                tileSize: 256,
+                zoomOffset: 0
+            });
+            tileLayer.addTo(map);
+            // Esperar un poco para que los tiles se carguen
+            await new Promise(resolve => setTimeout(resolve, 500));
+        } else if (tileLayer) {
+            // Si ya hay tiles, forzar redibujado
+            tileLayer.redraw();
+        }
+        
+        // Invalidar el tamaño del mapa múltiples veces para asegurar renderizado
+        setTimeout(() => {
+            if (map) {
+                map.invalidateSize();
+            }
+        }, 100);
+        
+        setTimeout(() => {
+            if (map) {
+                map.invalidateSize();
+                // Forzar redibujado de tiles
+                if (tileLayer) {
+                    tileLayer.redraw();
+                }
+            }
+        }, 300);
+
+        // Obtener coordenadas de origen y destino
+        let origenLat, origenLng, destinoLat, destinoLng;
+        
+        // Si la ruta tiene objetos origen/destino con coordenadas
+        if (routeData.origen && routeData.origen.coordenadaX && routeData.origen.coordenadaY) {
+            origenLat = routeData.origen.coordenadaY;
+            origenLng = routeData.origen.coordenadaX;
+        } else if (routeData.origen && routeData.origen.id) {
+            // Si origen tiene id pero no coordenadas, buscar por id
+            const origenId = routeData.origen.id;
+            const zonaOrigen = zonasParaRutas.find(z => z.id === origenId);
+            if (zonaOrigen && zonaOrigen.coordenadaX && zonaOrigen.coordenadaY) {
+                origenLat = zonaOrigen.coordenadaY;
+                origenLng = zonaOrigen.coordenadaX;
+            } else {
+                try {
+                    const resp = await fetch(`${API_URL}/zonas/${origenId}`);
+                    if (resp.ok) {
+                        const zona = await resp.json();
+                        origenLat = zona.coordenadaY;
+                        origenLng = zona.coordenadaX;
+                    }
+                } catch (e) {
+                    console.error('Error cargando zona origen:', e);
+                }
+            }
+        } else if (routeData.origenId) {
+            // Buscar la zona en zonasParaRutas o cargar desde API
+            const zonaOrigen = zonasParaRutas.find(z => z.id === routeData.origenId);
+            if (zonaOrigen && zonaOrigen.coordenadaX && zonaOrigen.coordenadaY) {
+                origenLat = zonaOrigen.coordenadaY;
+                origenLng = zonaOrigen.coordenadaX;
+            } else {
+                // Cargar desde API
+                try {
+                    const resp = await fetch(`${API_URL}/zonas/${routeData.origenId}`);
+                    if (resp.ok) {
+                        const zona = await resp.json();
+                        origenLat = zona.coordenadaY;
+                        origenLng = zona.coordenadaX;
+                    }
+                } catch (e) {
+                    console.error('Error cargando zona origen:', e);
+                }
+            }
+        }
+
+        if (routeData.destino && routeData.destino.coordenadaX && routeData.destino.coordenadaY) {
+            destinoLat = routeData.destino.coordenadaY;
+            destinoLng = routeData.destino.coordenadaX;
+        } else if (routeData.destino && routeData.destino.id) {
+            // Si destino tiene id pero no coordenadas, buscar por id
+            const destinoId = routeData.destino.id;
+            const zonaDestino = zonasParaRutas.find(z => z.id === destinoId);
+            if (zonaDestino && zonaDestino.coordenadaX && zonaDestino.coordenadaY) {
+                destinoLat = zonaDestino.coordenadaY;
+                destinoLng = zonaDestino.coordenadaX;
+            } else {
+                try {
+                    const resp = await fetch(`${API_URL}/zonas/${destinoId}`);
+                    if (resp.ok) {
+                        const zona = await resp.json();
+                        destinoLat = zona.coordenadaY;
+                        destinoLng = zona.coordenadaX;
+                    }
+                } catch (e) {
+                    console.error('Error cargando zona destino:', e);
+                }
+            }
+        } else if (routeData.destinoId) {
+            const zonaDestino = zonasParaRutas.find(z => z.id === routeData.destinoId);
+            if (zonaDestino && zonaDestino.coordenadaX && zonaDestino.coordenadaY) {
+                destinoLat = zonaDestino.coordenadaY;
+                destinoLng = zonaDestino.coordenadaX;
+            } else {
+                try {
+                    const resp = await fetch(`${API_URL}/zonas/${routeData.destinoId}`);
+                    if (resp.ok) {
+                        const zona = await resp.json();
+                        destinoLat = zona.coordenadaY;
+                        destinoLng = zona.coordenadaX;
+                    }
+                } catch (e) {
+                    console.error('Error cargando zona destino:', e);
+                }
+            }
+        }
+
+        if (!origenLat || !origenLng || !destinoLat || !destinoLng) {
+            showNotification('No se pudieron obtener las coordenadas de la ruta', 'error');
+            return;
+        }
+
+        // Remover ruta anterior si existe
+        removeRouteFromMap(routeId);
+
+        // Crear marcadores para origen y destino
+        const originMarker = L.marker([origenLat, origenLng], {
+            icon: L.divIcon({
+                html: `<div style="background: #4CAF50; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"><span style="color: white; font-size: 14px; font-weight: bold;">A</span></div>`,
+                className: '',
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            })
+        }).addTo(map)
+        .bindPopup(`<strong>Origen:</strong> ${routeData.origen?.nombre || routeData.origenId}<br>Ruta: ${routeId}`);
+
+        const destMarker = L.marker([destinoLat, destinoLng], {
+            icon: L.divIcon({
+                html: `<div style="background: #F44336; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"><span style="color: white; font-size: 14px; font-weight: bold;">B</span></div>`,
+                className: '',
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            })
+        }).addTo(map)
+        .bindPopup(`<strong>Destino:</strong> ${routeData.destino?.nombre || routeData.destinoId}<br>Ruta: ${routeId}`);
+
+        // Determinar color según tipo de ruta
+        let routeColor = '#2196f3'; // Azul por defecto
+        if (routeData.tipo === 'Aérea' || routeData.tipo === 'AEREA') {
+            routeColor = '#9c27b0'; // Morado
+        } else if (routeData.tipo === 'Marítima' || routeData.tipo === 'MARITIMA') {
+            routeColor = '#00bcd4'; // Cyan
+        } else {
+            routeColor = '#4caf50'; // Verde para terrestre
+        }
+
+        // Crear control de routing exactamente igual que calculateRealRoute()
+        // pero con el color personalizado según el tipo de ruta
+        const routingControl = L.Routing.control({
+            waypoints: [
+                L.latLng(origenLat, origenLng),
+                L.latLng(destinoLat, destinoLng)
+            ],
+            routeWhileDragging: false,
+            showAlternatives: false,
+            lineOptions: {
+                styles: [
+                    {
+                        color: routeColor,
+                        weight: 6,
+                        opacity: 0.8
+                    }
+                ]
+            },
+            createMarker: function() { return null; } // No crear marcadores adicionales
+        }).addTo(map);
+        
+        // Ocultar los paneles de información del routing control
+        // Agregar una clase al contenedor para identificarlo
+        const hideRoutingPanels = () => {
+            try {
+                // Agregar clase al contenedor del routing control para ocultarlo con CSS
+                if (routingControl._container) {
+                    routingControl._container.classList.add('route-auto-hidden');
+                    
+                    // También ocultar directamente los paneles
+                    const containerPanels = routingControl._container.querySelectorAll(
+                        '.leaflet-routing-container, .leaflet-routing-instructions, .leaflet-routing-alt'
+                    );
+                    containerPanels.forEach(panel => {
+                        panel.style.display = 'none';
+                        panel.style.visibility = 'hidden';
+                        panel.style.opacity = '0';
+                        panel.style.height = '0';
+                        panel.style.width = '0';
+                        panel.style.overflow = 'hidden';
+                    });
+                }
+                
+                // También buscar y ocultar paneles que puedan estar fuera del contenedor
+                const allPanels = document.querySelectorAll(
+                    '.leaflet-routing-container, .leaflet-routing-instructions, .leaflet-routing-alt'
+                );
+                allPanels.forEach(panel => {
+                    // Solo ocultar si no es parte del routing control manual (currentRoutingControl)
+                    if (!currentRoutingControl || !currentRoutingControl._container || 
+                        !currentRoutingControl._container.contains(panel)) {
+                        panel.style.display = 'none';
+                        panel.style.visibility = 'hidden';
+                        panel.style.opacity = '0';
+                    }
+                });
+            } catch (e) {
+                console.warn('Error ocultando paneles de routing:', e);
+            }
+        };
+        
+        // Ocultar inmediatamente y después de que se cree
+        hideRoutingPanels();
+        setTimeout(hideRoutingPanels, 50);
+        setTimeout(hideRoutingPanels, 200);
+        setTimeout(hideRoutingPanels, 500);
+        setTimeout(hideRoutingPanels, 1000);
+        
+        // Ocultar cuando se encuentre la ruta
+        routingControl.on('routesfound', function() {
+            setTimeout(hideRoutingPanels, 10);
+            setTimeout(hideRoutingPanels, 100);
+            setTimeout(hideRoutingPanels, 500);
+        });
+
+        // Guardar referencia a la ruta visualizada con información adicional
+        const routeInfo = {
+            routeId: routeId,
+            routingControl: routingControl,
+            markers: [originMarker, destMarker],
+            routeData: routeData,
+            routeLine: null // Se llenará cuando se calcule la ruta
+        };
+        
+        // Escuchar cuando se encuentre la ruta para guardar la línea
+        routingControl.on('routesfound', function(e) {
+            if (e.routes && e.routes.length > 0) {
+                // Guardar referencia a la línea de la ruta
+                const route = e.routes[0];
+                // El routing control crea automáticamente la línea, pero podemos guardar referencia
+                routeInfo.routeLine = route;
+            }
+        });
+        
+        displayedRoutes.push(routeInfo);
+
+        // Cambiar a la pestaña del mapa si no está ahí
+        if (currentTab !== 'mapa') {
+            switchTab('mapa');
+            // Esperar a que el mapa se renderice después de cambiar de pestaña
+            await new Promise(resolve => setTimeout(resolve, 300));
+            // Invalidar tamaño para asegurar renderizado correcto
+            if (map) {
+                map.invalidateSize();
+            }
+        }
+        
+        // Ajustar vista del mapa para mostrar la ruta completa
+        setTimeout(() => {
+            if (map && origenLat && origenLng && destinoLat && destinoLng) {
+                const bounds = L.latLngBounds([origenLat, origenLng], [destinoLat, destinoLng]);
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }
+        }, 200);
+
+        showNotification(`Ruta ${routeId} mostrada en el mapa`, 'success');
+    }
+
+    // Función para remover una ruta del mapa
+    function removeRouteFromMap(routeId) {
+        const routeIndex = displayedRoutes.findIndex(r => r.routeId === routeId);
+        if (routeIndex !== -1) {
+            const route = displayedRoutes[routeIndex];
+            
+            // Remover el routing control correctamente
+            if (route.routingControl) {
+                try {
+                    // El routing control tiene un método remove() o podemos usar removeControl
+                    if (typeof route.routingControl.remove === 'function') {
+                        route.routingControl.remove();
+                    } else {
+                        map.removeControl(route.routingControl);
+                    }
+                    
+                    // También remover el contenedor del DOM si existe
+                    if (route.routingControl._container && route.routingControl._container.parentNode) {
+                        route.routingControl._container.parentNode.removeChild(route.routingControl._container);
+                    }
+                } catch (e) {
+                    console.warn('Error removiendo routing control:', e);
+                    // Intentar métodos alternativos
+                    try {
+                        if (route.routingControl._container) {
+                            route.routingControl._container.remove();
+                        }
+                        map.removeControl(route.routingControl);
+                    } catch (e2) {
+                        console.warn('Error en método alternativo:', e2);
+                    }
+                }
+            }
+            
+            // Remover marcadores
+            if (route.markers && Array.isArray(route.markers)) {
+                route.markers.forEach(marker => {
+                    try {
+                        if (marker) {
+                            map.removeLayer(marker);
+                        }
+                    } catch (e) {
+                        console.warn('Error removiendo marcador:', e);
+                    }
+                });
+            }
+            
+            displayedRoutes.splice(routeIndex, 1);
+            
+            // Recargar la lista de rutas para actualizar el estado
+            if (typeof loadAllRoutes === 'function') {
+                setTimeout(() => loadAllRoutes(), 100);
+            }
+            
+            showNotification(`Ruta ${routeId} removida del mapa`, 'success');
+        }
+    }
+
+    // Función para limpiar todas las rutas del mapa
+    function clearAllRoutesFromMap() {
+        if (!map) {
+            console.error('El mapa no está inicializado');
+            showNotification('El mapa no está inicializado', 'error');
+            return;
+        }
+        
+        if (displayedRoutes.length === 0) {
+            showNotification('No hay rutas para limpiar', 'info');
+            return;
+        }
+        
+        // Crear una copia del array para evitar problemas durante la iteración
+        const routesToRemove = [...displayedRoutes];
+        let removedCount = 0;
+        
+        routesToRemove.forEach(route => {
+            try {
+                // Remover el routing control correctamente
+                if (route.routingControl) {
+                    try {
+                        // Intentar usar el método remove() si existe
+                        if (typeof route.routingControl.remove === 'function') {
+                            route.routingControl.remove();
+                        } else {
+                            map.removeControl(route.routingControl);
+                        }
+                        
+                        // También remover el contenedor del DOM si existe
+                        if (route.routingControl._container && route.routingControl._container.parentNode) {
+                            route.routingControl._container.parentNode.removeChild(route.routingControl._container);
+                        }
+                    } catch (e) {
+                        console.warn('Error removiendo routing control:', e);
+                        // Intentar métodos alternativos
+                        try {
+                            if (route.routingControl._container) {
+                                route.routingControl._container.remove();
+                            }
+                            map.removeControl(route.routingControl);
+                        } catch (e2) {
+                            console.warn('Error en método alternativo:', e2);
+                        }
+                    }
+                }
+                
+                // Remover marcadores
+                if (route.markers && Array.isArray(route.markers)) {
+                    route.markers.forEach(marker => {
+                        try {
+                            if (marker) {
+                                map.removeLayer(marker);
+                            }
+                        } catch (e) {
+                            console.warn('Error removiendo marcador:', e);
+                        }
+                    });
+                }
+                
+                removedCount++;
+            } catch (e) {
+                console.error('Error procesando ruta para remover:', e);
+            }
+        });
+        
+        displayedRoutes = [];
+        
+        // Recargar la lista de rutas para actualizar el estado
+        if (typeof loadAllRoutes === 'function') {
+            setTimeout(() => loadAllRoutes(), 100);
+        }
+        
+        showNotification(`${removedCount} ruta(s) removida(s) del mapa`, 'success');
+    }
+
     function setMode(mode) {
         currentMode = mode;
 
@@ -4628,6 +5245,12 @@ function showMap() {
             currentUser = null;
             // Limpiar localStorage al cerrar sesión
             localStorage.removeItem('currentUser');
+            // Restablecer todas las pestañas a visible
+            document.querySelectorAll('.tabs-header .tab-button').forEach(button => {
+                button.style.display = 'flex';
+            });
+            // Cambiar a la pestaña de inicio
+            switchTab('inicio');
             document.getElementById('dashboard').style.display = 'none';
             document.getElementById('loginPage').style.display = 'flex';
             document.getElementById('username').value = '';
@@ -4677,7 +5300,7 @@ function showMap() {
         // Configurar layout del árbol con mejor separación
         d3Tree = d3.tree()
             .size([treeWidth - 200, treeHeight - 150])
-                        .separation((a, b) => (a.parent === b.parent ? 1.2 : 1.5));
+            .separation((a, b) => (a.parent === b.parent ? 1.2 : 1.5));
 
         console.log('✅ Árbol D3 inicializado correctamente');
     }
@@ -5197,7 +5820,7 @@ function showMap() {
                 console.error('❌ Error fetch recursos:', err);
                 return { ok: false };
             }),
-                        fetch(`${API_URL}/zonas`).catch(err => {
+            fetch(`${API_URL}/zonas`).catch(err => {
                 console.error('❌ Error fetch zonas:', err);
                 return { ok: false };
             })
@@ -5430,13 +6053,34 @@ async function manualUpdateTree() {
 
         // 3. Inicializar según la pestaña principal
         if (tabName === 'mapa') {
-            setTimeout(() => {
-                if (!map) {
-                    initializeMap();
-                } else {
-                    map.invalidateSize();
+            // Esperar a que la pestaña sea visible antes de inicializar
+            setTimeout(async () => {
+                const mapaTab = document.getElementById('mapa-tab');
+                if (mapaTab && mapaTab.classList.contains('active')) {
+                    if (!map) {
+                        await initializeMap();
+                    } else {
+                        // Invalidar tamaño múltiples veces para asegurar renderizado
+                        map.invalidateSize();
+                        setTimeout(() => {
+                            if (map) {
+                                map.invalidateSize();
+                                // Forzar redibujado de todos los tiles
+                                map.eachLayer(function(layer) {
+                                    if (layer instanceof L.TileLayer) {
+                                        layer.redraw();
+                                    }
+                                });
+                            }
+                        }, 200);
+                        setTimeout(() => {
+                            if (map) {
+                                map.invalidateSize();
+                            }
+                        }, 500);
+                    }
                 }
-            }, 100);
+            }, 150);
         }
 
         if (tabName === 'inicio') {
@@ -5717,7 +6361,7 @@ async function handleAdminResourceSubmit(e) {
         if (!resp.ok || result.success === false) {
             console.error('Error al crear recurso:', result);
             showNotification(result.message || 'No se pudo crear el recurso', 'error');
-                        return;
+            return;
         }
 
         showNotification('Recurso creado correctamente', 'success');
@@ -6094,6 +6738,11 @@ async function assignResourceToZone() {
                 btn.classList.add('active');
             }
         });
+        
+        // Cargar rutas cuando se cambia a la pestaña ver-rutas
+        if (tabName === 'ver-rutas') {
+            loadAllRoutes();
+        }
     }
 
    // Variables globales para almacenar zonas cargadas
@@ -6111,6 +6760,14 @@ async function loadZonasForRutas() {
     const optimalDestination = document.getElementById('optimalDestination');
 
     console.log('🔄 Cargando zonas para rutas...');
+
+    // Guardar los valores seleccionados antes de recargar
+    const origenSeleccionado = selectOrigen?.value || '';
+    const destinoSeleccionado = selectDestino?.value || '';
+    const evacOrigenSeleccionado = evacOrigen?.value || '';
+    const evacDestinoSeleccionado = evacDestino?.value || '';
+    const optimalOrigenSeleccionado = optimalOrigin?.value || '';
+    const optimalDestinoSeleccionado = optimalDestination?.value || '';
 
     try {
         const resp = await fetch(`${API_URL}/zonas`, { method: 'GET' });
@@ -6150,6 +6807,14 @@ async function loadZonasForRutas() {
                 opt2.textContent = `${z.nombre || z.id} (${z.coordenadaX?.toFixed(4)}, ${z.coordenadaY?.toFixed(4)})`;
                 selectDestino.appendChild(opt2);
             });
+            
+            // Restaurar los valores seleccionados si existían
+            if (origenSeleccionado) {
+                selectOrigen.value = origenSeleccionado;
+            }
+            if (destinoSeleccionado) {
+                selectDestino.value = destinoSeleccionado;
+            }
         }
         
         // Llenar selects de evacuación
@@ -6168,6 +6833,14 @@ async function loadZonasForRutas() {
                 opt4.textContent = z.nombre || z.id;
                 evacDestino.appendChild(opt4);
             });
+            
+            // Restaurar los valores seleccionados si existían
+            if (evacOrigenSeleccionado) {
+                evacOrigen.value = evacOrigenSeleccionado;
+            }
+            if (evacDestinoSeleccionado) {
+                evacDestino.value = evacDestinoSeleccionado;
+            }
         }
         
         // Llenar selects de rutas óptimas
@@ -6186,6 +6859,14 @@ async function loadZonasForRutas() {
                 opt6.textContent = z.nombre || z.id;
                 optimalDestination.appendChild(opt6);
             });
+            
+            // Restaurar los valores seleccionados si existían
+            if (optimalOrigenSeleccionado) {
+                optimalOrigin.value = optimalOrigenSeleccionado;
+            }
+            if (optimalDestinoSeleccionado) {
+                optimalDestination.value = optimalDestinoSeleccionado;
+            }
         }
         
         console.log('✅ Todos los selects poblados correctamente');
@@ -6232,11 +6913,11 @@ function calcularTiempoEstimado(distanciaKm, tipoRuta) {
 /**
  * Calcula y muestra la vista previa de la ruta
  */
-function calculateRoutePreview() {
+async function calculateRoutePreview() {
     const origenId = document.getElementById('routeOrigin')?.value;
     const destinoId = document.getElementById('routeDestination')?.value;
     const tipoRuta = document.getElementById('routeType')?.value || 'TERRESTRE';
-        
+    
     const previewDiv = document.getElementById('routePreview');
     const distanceDiv = document.getElementById('previewDistance');
     const timeDiv = document.getElementById('previewTime');
@@ -6244,15 +6925,27 @@ function calculateRoutePreview() {
     console.log('🔍 Calculando preview:', { origenId, destinoId, tipoRuta });
     console.log('📦 Zonas disponibles:', zonasParaRutas.length);
     
+    // Si no hay zonas cargadas, intentar cargarlas SOLO si no hay selecciones activas
+    // Esto evita interrumpir al usuario cuando está seleccionando
+    if (!zonasParaRutas || zonasParaRutas.length === 0) {
+        if (!origenId && !destinoId) {
+            // No hay selecciones, podemos recargar sin problemas
+            console.warn('⚠️ zonasParaRutas está vacío y no hay selecciones, recargando...');
+            await loadZonasForRutas();
+            return;
+        } else {
+            // Hay selecciones activas - NO recargar para no interrumpir al usuario
+            // Solo mostrar un mensaje y ocultar el preview
+            console.error('❌ zonasParaRutas está vacío pero hay selecciones activas. No se puede calcular preview.');
+            if (previewDiv) previewDiv.style.display = 'none';
+            showNotification('Las zonas no están cargadas. Por favor, recarga la página o haz clic en "Recargar Zonas".', 'warning');
+            return;
+        }
+    }
+    
     if (!origenId || !destinoId) {
         console.log('⚠️ Faltan origen o destino');
         if (previewDiv) previewDiv.style.display = 'none';
-        return;
-    }
-    
-    if (!zonasParaRutas || zonasParaRutas.length === 0) {
-        console.warn('⚠️ zonasParaRutas está vacío, recargando...');
-        loadZonasForRutas().then(() => calculateRoutePreview());
         return;
     }
     
@@ -6338,61 +7031,8 @@ function calcularTiempoEstimado(distanciaKm, tipoRuta) {
     return distanciaKm / velocidad; // tiempo en horas
 }
 
-/**
- * Calcula y muestra la vista previa de la ruta
- */
-function calculateRoutePreview() {
-    const origenId = document.getElementById('routeOrigin')?.value;
-    const destinoId = document.getElementById('routeDestination')?.value;
-    const tipoRuta = document.getElementById('routeType')?.value || 'TERRESTRE';
-    
-    const previewDiv = document.getElementById('routePreview');
-    const distanceDiv = document.getElementById('previewDistance');
-    const timeDiv = document.getElementById('previewTime');
-    
-    if (!origenId || !destinoId || !zonasParaRutas || zonasParaRutas.length === 0) {
-        if (previewDiv) previewDiv.style.display = 'none';
-        return;
-    }
-    
-    // Buscar las zonas
-    const zonaOrigen = zonasParaRutas.find(z => z.id === origenId);
-    const zonaDestino = zonasParaRutas.find(z => z.id === destinoId);
-    
-    if (!zonaOrigen || !zonaDestino) {
-        if (previewDiv) previewDiv.style.display = 'none';
-        return;
-    }
-    
-    // Calcular distancia y tiempo
-    const distancia = calcularDistanciaGeografica(
-        zonaOrigen.coordenadaX,
-        zonaOrigen.coordenadaY,
-        zonaDestino.coordenadaX,
-        zonaDestino.coordenadaY
-    );
-    
-    const tiempo = calcularTiempoEstimado(distancia, tipoRuta);
-    
-    // Mostrar resultados
-    if (previewDiv) previewDiv.style.display = 'block';
-    if (distanceDiv) distanceDiv.textContent = `${distancia.toFixed(2)} km`;
-    if (timeDiv) {
-        const horas = Math.floor(tiempo);
-        const minutos = Math.round((tiempo - horas) * 60);
-        timeDiv.textContent = horas > 0 
-            ? `${horas}h ${minutos}min` 
-            : `${minutos} minutos`;
-    }
-    
-    console.log('📏 Cálculo de ruta:', {
-        origen: zonaOrigen.nombre,
-        destino: zonaDestino.nombre,
-        distancia: distancia.toFixed(2) + ' km',
-        tiempo: tiempo.toFixed(2) + ' horas',
-        tipoRuta
-    });
-}
+// NOTA: La función calculateRoutePreview() está definida arriba (línea ~6236)
+// Esta era una versión duplicada que ha sido eliminada
 //=========================================================
 // PANEL DE RUTAS
 //=========================================================
@@ -6494,32 +7134,107 @@ let rutasPanelInicializado = false;
                     return;
                 }
 
+                // Verificar si el ID de ruta ya existe
+                try {
+                    const existingRoutesResp = await fetch(`${API_URL}/rutas`);
+                    if (existingRoutesResp.ok) {
+                        const existingRoutes = await existingRoutesResp.json();
+                        const routeExists = existingRoutes.some(r => r.id === routeData.id);
+                        if (routeExists) {
+                            showNotification(`El ID de ruta "${routeData.id}" ya existe. Por favor usa otro ID.`, 'error');
+                            return;
+                        }
+                    }
+                } catch (checkError) {
+                    console.warn('No se pudo verificar rutas existentes:', checkError);
+                    // Continuar de todas formas, el backend validará
+                }
+
+                // Verificar que las zonas existan en el servidor
+                try {
+                    const zonaOrigenCheck = await fetch(`${API_URL}/zonas/${origenId}`);
+                    const zonaDestinoCheck = await fetch(`${API_URL}/zonas/${destinoId}`);
+                    
+                    if (!zonaOrigenCheck.ok) {
+                        showNotification(`La zona origen "${origenId}" no existe en el servidor.`, 'error');
+                        return;
+                    }
+                    if (!zonaDestinoCheck.ok) {
+                        showNotification(`La zona destino "${destinoId}" no existe en el servidor.`, 'error');
+                        return;
+                    }
+                } catch (checkError) {
+                    console.warn('No se pudieron verificar las zonas:', checkError);
+                    // Continuar de todas formas, el backend validará
+                }
+
                 console.log('📤 Enviando ruta al servidor:', routeData);
 
                 try {
+                    console.log('📤 Enviando datos al servidor:', routeData);
                     const resp = await fetch(`${API_URL}/rutas`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(routeData)
                     });
 
-                    const result = await resp.json().catch(() => ({}));
+                    console.log('📥 Respuesta del servidor - Status:', resp.status, resp.statusText);
+                    
+                    let result = {};
+                    try {
+                        const text = await resp.text();
+                        console.log('📥 Respuesta del servidor - Body:', text);
+                        if (text) {
+                            result = JSON.parse(text);
+                        }
+                    } catch (parseError) {
+                        console.warn('⚠️ No se pudo parsear la respuesta JSON:', parseError);
+                    }
 
-                    if (resp.ok) {
+                    if (resp.ok && (result.success === undefined || result.success === true)) {
+                        console.log('✅ Ruta creada exitosamente');
                         showNotification(
                             `✅ Ruta creada: ${distancia.toFixed(2)} km en ${tiempoEstimado.toFixed(2)} horas`, 
                             'success'
                         );
+                        
+                        // Mostrar la ruta automáticamente en el mapa
+                        const newRouteData = {
+                            id: routeData.id,
+                            origenId: origenId,
+                            destinoId: destinoId,
+                            origen: { nombre: zonaOrigen.nombre, coordenadaX: zonaOrigen.coordenadaX, coordenadaY: zonaOrigen.coordenadaY },
+                            destino: { nombre: zonaDestino.nombre, coordenadaX: zonaDestino.coordenadaX, coordenadaY: zonaDestino.coordenadaY },
+                            distancia: routeData.distancia,
+                            tiempoEstimado: routeData.tiempoEstimado,
+                            tipo: routeData.tipo
+                        };
+                        await showRouteOnMap(routeData.id, newRouteData);
+                        
+                        // Solo resetear el formulario cuando la creación es exitosa
                         routeForm.reset();
                         document.getElementById('routePreview').style.display = 'none';
                         await loadAllRoutes();
                     } else {
                         console.error('❌ Error del servidor:', result);
-                        showNotification(result.message || 'No se pudo crear la ruta', 'error');
+                        let errorMessage = result.message || 'No se pudo crear la ruta. Verifica los datos ingresados.';
+                        
+                        // Mejorar mensajes de error comunes
+                        if (errorMessage.includes('zonas existan') || errorMessage.includes('zona')) {
+                            errorMessage = `Error: Las zonas seleccionadas no existen o no son válidas. Verifica que las zonas "${origenId}" y "${destinoId}" existan en el sistema.`;
+                        } else if (errorMessage.includes('duplicado') || errorMessage.includes('ID')) {
+                            errorMessage = `Error: El ID de ruta "${routeData.id}" ya existe. Por favor usa otro ID único.`;
+                        } else if (!errorMessage.includes('Error:')) {
+                            errorMessage = `Error: ${errorMessage}`;
+                        }
+                        
+                        showNotification(errorMessage, 'error');
+                        // NO resetear el formulario cuando hay error - mantener los datos para que el usuario pueda corregirlos
                     }
                 } catch (error) {
-                    console.error('❌ Error creando ruta:', error);
-                    showNotification('Error de conexión', 'error');
+                    console.error('❌ Error de conexión al crear ruta:', error);
+                    showNotification('Error de conexión con el servidor. Verifica tu conexión e intenta nuevamente.', 'error');
+                    // NO resetear el formulario cuando hay error de conexión
                 }
             });
         }
@@ -6589,90 +7304,9 @@ async function recargarZonasRutas() {
     }
 }
 
-
-// Carga las zonas desde la API y llena los selects de origen/destino
-async function loadZonasForRutas() {
-    const selectOrigen  = document.getElementById('routeOrigin');
-    const selectDestino = document.getElementById('routeDestination');
-    const evacOrigen = document.getElementById('evacOrigin');
-    const evacDestino = document.getElementById('evacDestination');
-    const optimalOrigin = document.getElementById('optimalOrigin');
-    const optimalDestination = document.getElementById('optimalDestination');
-
-    if (!selectOrigen || !selectDestino) {
-        console.warn('No se encontraron los selects #routeOrigin o #routeDestination');
-        return;
-    }
-
-    try {
-        const resp = await fetch(`${API_URL}/zonas`, { method: 'GET' });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-
-        const zonas = await resp.json();
-        
-        console.log('✅ Zonas cargadas para rutas:', zonas.length);
-
-        // Limpiar y llenar select de origen (crear rutas)
-        selectOrigen.innerHTML  = '<option value="">Selecciona zona origen</option>';
-        selectDestino.innerHTML = '<option value="">Selecciona zona destino</option>';
-        
-        // Limpiar y llenar selects de evacuación
-        if (evacOrigen) evacOrigen.innerHTML = '<option value="">Selecciona zona origen</option>';
-        if (evacDestino) evacDestino.innerHTML = '<option value="">Selecciona zona destino</option>';
-        
-        // Limpiar y llenar selects de rutas óptimas
-        if (optimalOrigin) optimalOrigin.innerHTML = '<option value="">Selecciona origen</option>';
-        if (optimalDestination) optimalDestination.innerHTML = '<option value="">Selecciona destino</option>';
-
-        zonas.forEach(z => {
-            // Para crear rutas
-            const opt1 = document.createElement('option');
-            opt1.value = z.id;
-            opt1.textContent = z.nombre || z.id;
-            selectOrigen.appendChild(opt1);
-
-            const opt2 = document.createElement('option');
-            opt2.value = z.id;
-            opt2.textContent = z.nombre || z.id;
-            selectDestino.appendChild(opt2);
-
-            // Para evacuaciones
-            if (evacOrigen) {
-                const opt3 = document.createElement('option');
-                opt3.value = z.id;
-                opt3.textContent = z.nombre || z.id;
-                evacOrigen.appendChild(opt3);
-            }
-
-            if (evacDestino) {
-                const opt4 = document.createElement('option');
-                opt4.value = z.id;
-                opt4.textContent = z.nombre || z.id;
-                evacDestino.appendChild(opt4);
-            }
-            
-            // Para rutas óptimas
-            if (optimalOrigin) {
-                const opt5 = document.createElement('option');
-                opt5.value = z.id;
-                opt5.textContent = z.nombre || z.id;
-                optimalOrigin.appendChild(opt5);
-            }
-            
-            if (optimalDestination) {
-                const opt6 = document.createElement('option');
-                opt6.value = z.id;
-                opt6.textContent = z.nombre || z.id;
-                optimalDestination.appendChild(opt6);
-            }
-        });
-        
-        console.log('✅ Selects de zonas poblados correctamente');
-    } catch (err) {
-        console.error('Error cargando zonas para rutas:', err);
-        showNotification('No se pudieron cargar las zonas para el panel de rutas', 'error');
-    }
-}
+// NOTA: La función loadZonasForRutas() está definida arriba (línea ~6106)
+// Esta era una versión duplicada que NO guardaba/restauraba valores seleccionados
+// y ha sido eliminada para evitar que se pierdan las selecciones del usuario
 
 // Maneja el envío del formulario "Crear Ruta Manualmente"
 async function crearRutaManual(event) {
@@ -6757,7 +7391,7 @@ async function loadRutasHistorial() {
         });
     } catch (err) {
         console.error('Error cargando historial de rutas:', err);
-                showNotification('No se pudo cargar el historial de rutas', 'error');
+        showNotification('No se pudo cargar el historial de rutas', 'error');
     }
 }
 // PLANIFICAR EVACUACIÓN
@@ -6810,6 +7444,7 @@ async function loadAllRoutes() {
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
         const rutas = await resp.json();
+        allRoutesData = rutas; // Guardar rutas para el selector
 
         if (!Array.isArray(rutas) || rutas.length === 0) {
             container.innerHTML = `
@@ -6817,6 +7452,7 @@ async function loadAllRoutes() {
                     <i class="fas fa-route"></i>
                     <h3>No hay rutas registradas</h3>
                 </div>`;
+            updateRouteSelector();
             return;
         }
 
@@ -6824,6 +7460,9 @@ async function loadAllRoutes() {
         rutas.forEach(r => {
             const card = document.createElement('div');
             card.className = 'route-card';
+            const isDisplayed = displayedRoutes.some(dr => dr.routeId === r.id);
+            
+            // Crear estructura HTML básica
             card.innerHTML = `
                 <div class="route-header">
                     <h4><i class="fas fa-route"></i> ${r.id}</h4>
@@ -6835,9 +7474,37 @@ async function loadAllRoutes() {
                     <p><i class="fas fa-road"></i> <strong>Distancia:</strong> ${r.distancia} km</p>
                     <p><i class="fas fa-clock"></i> <strong>Tiempo:</strong> ${r.tiempoEstimado} hrs</p>
                 </div>
+                <div class="route-actions" style="display: flex; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e1e8ed;">
+                    <button class="btn-action route-show-btn" data-route-id="${r.id}" style="flex: 1; background: ${isDisplayed ? '#e53e3e' : '#4299e1'};">
+                        <i class="fas fa-${isDisplayed ? 'eye-slash' : 'map-marked-alt'}"></i> ${isDisplayed ? 'Ocultar' : 'Ver en Mapa'}
+                    </button>
+                    ${isDisplayed ? `<button class="btn-action route-remove-btn" data-route-id="${r.id}" style="flex: 1; background: #e53e3e;">
+                        <i class="fas fa-times"></i> Remover
+                    </button>` : ''}
+                </div>
             `;
+            
+            // Agregar event listeners para los botones
+            const showBtn = card.querySelector('.route-show-btn');
+            if (showBtn) {
+                showBtn.addEventListener('click', async () => {
+                    await showRouteOnMap(r.id, r);
+                    await loadAllRoutes(); // Recargar para actualizar el estado
+                });
+            }
+            
+            const removeBtn = card.querySelector('.route-remove-btn');
+            if (removeBtn) {
+                removeBtn.addEventListener('click', async () => {
+                    removeRouteFromMap(r.id);
+                    await loadAllRoutes(); // Recargar para actualizar el estado
+                });
+            }
+            
             container.appendChild(card);
         });
+        
+        updateRouteSelector();
     } catch (err) {
         console.error('Error cargando rutas:', err);
         container.innerHTML = `
@@ -6845,6 +7512,33 @@ async function loadAllRoutes() {
                 <i class="fas fa-exclamation-triangle"></i>
                 <h3>Error cargando rutas</h3>
             </div>`;
+    }
+}
+
+// Función para actualizar el selector de rutas
+function updateRouteSelector() {
+    const selector = document.getElementById('routeSelector');
+    if (!selector) return;
+    
+    selector.innerHTML = '<option value="">Selecciona una ruta para visualizar...</option>';
+    if (allRoutesData && allRoutesData.length > 0) {
+        allRoutesData.forEach(r => {
+            const option = document.createElement('option');
+            option.value = r.id;
+            option.textContent = `${r.id} - ${r.origen?.nombre || r.origenId} → ${r.destino?.nombre || r.destinoId}`;
+            selector.appendChild(option);
+        });
+    }
+}
+
+// Función para manejar la selección de ruta desde el selector
+async function onRouteSelectorChange() {
+    const selector = document.getElementById('routeSelector');
+    if (!selector || !selector.value) return;
+    
+    const selectedRoute = allRoutesData.find(r => r.id === selector.value);
+    if (selectedRoute) {
+        await showRouteOnMap(selectedRoute.id, selectedRoute);
     }
 }
 
@@ -7277,7 +7971,7 @@ async function loadEvacuaciones() {
                     ],
                     borderWidth: 1
                 }]
-                    },
+            },
             options: {
                 responsive: true,
                 plugins: {
@@ -7393,6 +8087,12 @@ async function loadEvacuaciones() {
             currentUser = null;
             // Limpiar localStorage al cerrar sesión
             localStorage.removeItem('currentUser');
+            // Restablecer todas las pestañas a visible
+            document.querySelectorAll('.tabs-header .tab-button').forEach(button => {
+                button.style.display = 'flex';
+            });
+            // Cambiar a la pestaña de inicio
+            switchTab('inicio');
             document.getElementById('dashboard').style.display = 'none';
             document.getElementById('loginPage').style.display = 'flex';
             document.getElementById('username').value = '';
@@ -7414,53 +8114,9 @@ async function loadEvacuaciones() {
         teamForm.addEventListener('submit', handleAdminTeamSubmit);
     }
     // ===== FORMULARIOS RUTAS =====
-    const routeForm = document.getElementById('createRouteForm');
+    // NOTA: El formulario de rutas se inicializa en initializeRoutesPanel()
+    // cuando se cambia a la pestaña de rutas, para evitar conflictos con múltiples listeners
     const evacForm = document.getElementById('planEvacuationForm');
-
-    if (routeForm) {
-        routeForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const routeData = {
-                id: document.getElementById('routeId').value,
-                origen: document.getElementById('routeOrigin').value,
-                destino: document.getElementById('routeDestination').value,
-                distancia: parseFloat(document.getElementById('routeDistance').value),
-                tiempoEstimado: parseFloat(document.getElementById('routeTime').value),
-                tipo: document.getElementById('routeType').value,
-                capacidadMaxima: parseInt(document.getElementById('routeCapacity').value),
-                nivelRiesgo: parseFloat(document.getElementById('routeRisk').value)
-            };
-
-        // Validación básica
-        if (!routeData.id || !routeData.origen || !routeData.destino) {
-            showNotification('Completa todos los campos obligatorios', 'error');
-            return;
-        }
-
-        try {
-            const resp = await fetch(`${API_URL}/rutas`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(routeData)
-            });
-
-            const result = await resp.json().catch(() => ({}));
-
-            if (resp.ok && (result.success === undefined || result.success === true)) {
-                showNotification('Ruta creada exitosamente', 'success');
-                routeForm.reset();
-                loadAllRoutes();
-            } else {
-                console.error('Error al crear ruta:', result);
-                showNotification(result.message || 'No se pudo crear la ruta', 'error');
-            }
-        } catch (error) {
-            console.error('Error de conexión al crear ruta:', error);
-            showNotification('Error de conexión con la API', 'error');
-        }
-    });
-    }
 
     if (evacForm) {
         evacForm.addEventListener('submit', planificarEvacuacion);
